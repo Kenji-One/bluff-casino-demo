@@ -92,12 +92,19 @@ export default function GameCarouselSection({
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (paused || !canLeft) {
-      if (timer.current) clearInterval(timer.current);
-      timer.current = null;
-      return;
+      if (timer.current) {
+        clearInterval(timer.current);
+        timer.current = null;
+      }
+      return; // returns undefined, which React accepts
     }
     timer.current = setInterval(shiftLeft, AUTOPLAY_MS);
-    return () => timer.current && clearInterval(timer.current);
+    return () => {
+      if (timer.current) {
+        clearInterval(timer.current);
+        timer.current = null;
+      }
+    };
   }, [idx, paused, canLeft, shiftLeft]);
 
   /* ─────────────── render ─────────────── */
