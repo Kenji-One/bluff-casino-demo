@@ -3,7 +3,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { apiClient, Game, ProductsResponse } from "@/services/api";
+import {
+  apiClient,
+  Game,
+  ProductsResponse,
+  RawGamesResponse,
+} from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import GameCard from "./GameCard";
 import GameFilters from "./GameFilters";
@@ -58,7 +63,7 @@ export default function GameGrid() {
       setLoading(true);
       setError("");
 
-      const res = await apiClient.get(
+      const res = await apiClient.get<RawGamesResponse>(
         `/seamless/games?productId=${filters.provider}&page=${p}&size=${GAMES_PER_PAGE}`
       );
 

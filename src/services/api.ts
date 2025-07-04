@@ -21,6 +21,13 @@ export interface User {
   updatedAt: string;
 }
 
+export interface RawGamesResponse {
+  success?: boolean;
+  message?: string;
+  data?: { games?: Game[] };
+  games?: Game[];
+}
+
 export interface Game {
   id: string;
   code: string;

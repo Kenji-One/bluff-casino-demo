@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { apiClient, Game } from "@/services/api";
+import { apiClient, Game, RawGamesResponse } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import GameCarouselSection from "@/components/games/GameCarouselSection";
 import Image from "next/image";
@@ -38,7 +38,7 @@ export default function Hero() {
     (async () => {
       try {
         setLoading(true);
-        const res = await apiClient.get(
+        const res = await apiClient.get<RawGamesResponse>(
           `/seamless/games?productId=${PRODUCT_ID}`
         );
         const raw = Array.isArray(res?.data?.games)
