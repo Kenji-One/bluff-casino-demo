@@ -43,6 +43,12 @@ export interface Game {
   recentlyPlayed?: boolean;
 }
 
+export interface ProductsResponse {
+  success: boolean;
+  message: string;
+  data: { products: string[] };
+}
+
 export interface WalletResponse {
   success: boolean;
   message: string;

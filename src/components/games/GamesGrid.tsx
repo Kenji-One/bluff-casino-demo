@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { apiClient, Game } from "@/services/api";
+import { apiClient, Game, ProductsResponse } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import GameCard from "./GameCard";
 import GameFilters from "./GameFilters";
@@ -31,9 +31,9 @@ export default function GameGrid() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiClient.get("/games/products");
+        const res = await apiClient.get<ProductsResponse>("/games/products");
         if (res.success) {
-          const list: string[] = res.data.products || [];
+          const list = res.data.products;
           setProviders(list);
           if (!filters.provider && list.length) {
             setFilters((f) => ({ ...f, provider: list[0] }));
@@ -46,9 +46,7 @@ export default function GameGrid() {
         setError(err.message || "Failed to load providers");
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   useEffect(() => {
     if (!filters.provider) return;
     fetchGames(1, true);
