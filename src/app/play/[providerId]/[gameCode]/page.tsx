@@ -10,13 +10,14 @@ import GameCarouselSection from "@/components/games/GameCarouselSection";
 import { Loader2, X } from "lucide-react";
 
 /* ---------- custom SVG icons ---------- */
-const BarChartIcon = () => (
+const BarChartIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="20"
     height="20"
     viewBox="0 0 20 20"
     fill="none"
+    {...props}
   >
     <path
       d="M6.25 11.875V13.75M8.75 10V13.75M11.25 8.125V13.75M13.75 6.25V13.75M5 16.875H15C16.0355 16.875 16.875 16.0355 16.875 15V5C16.875 3.96447 16.0355 3.125 15 3.125H5C3.96447 3.125 3.125 3.96447 3.125 5V15C3.125 16.0355 3.96447 16.875 5 16.875Z"
@@ -27,13 +28,14 @@ const BarChartIcon = () => (
     />
   </svg>
 );
-const KeyboardIcon = () => (
+const KeyboardIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="20"
     height="20"
     viewBox="0 0 20 20"
     fill="none"
+    {...props}
   >
     <g clip-path="url(#clip0_147_75620)">
       <path
@@ -48,13 +50,14 @@ const KeyboardIcon = () => (
     </defs>
   </svg>
 );
-const TheatreIcon = () => (
+const TheatreIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="20"
     height="20"
     viewBox="0 0 20 20"
     fill="none"
+    {...props}
   >
     <path
       d="M5 2.5C3.61929 2.5 2.5 3.61929 2.5 5V6.25C2.5 6.59518 2.77982 6.875 3.125 6.875C3.47018 6.875 3.75 6.59518 3.75 6.25V5C3.75 4.30964 4.30964 3.75 5 3.75H6.25C6.59518 3.75 6.875 3.47018 6.875 3.125C6.875 2.77982 6.59518 2.5 6.25 2.5H5Z"
@@ -78,13 +81,14 @@ const TheatreIcon = () => (
     />
   </svg>
 );
-const SettingsIcon = () => (
+const SettingsIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="20"
     height="20"
     viewBox="0 0 20 20"
     fill="none"
+    {...props}
   >
     <path
       d="M7.99473 3.28344C8.07007 2.83139 8.46119 2.50006 8.91947 2.50006H11.0811C11.5394 2.50006 11.9305 2.83139 12.0059 3.28344L12.1838 4.35098C12.2357 4.66268 12.444 4.92233 12.7205 5.07536C12.7823 5.10958 12.8434 5.14493 12.9038 5.18137C13.1746 5.34493 13.5041 5.39578 13.8004 5.28478L14.8144 4.90488C15.2436 4.7441 15.7261 4.91715 15.9552 5.31404L17.0361 7.18608C17.2652 7.58296 17.1738 8.08734 16.82 8.37862L15.9831 9.06763C15.7393 9.2683 15.6185 9.57816 15.6243 9.89384C15.625 9.92917 15.6253 9.96458 15.6253 10.0001C15.6253 10.0355 15.625 10.071 15.6243 10.1063C15.6185 10.422 15.7393 10.7318 15.9831 10.9325L16.82 11.6215C17.1738 11.9128 17.2652 12.4172 17.0361 12.814L15.9552 14.6861C15.7261 15.083 15.2436 15.256 14.8144 15.0952L13.8004 14.7153C13.5041 14.6043 13.1747 14.6552 12.9038 14.8187C12.8434 14.8552 12.7823 14.8905 12.7205 14.9248C12.444 15.0778 12.2357 15.3374 12.1838 15.6491L12.0059 16.7167C11.9305 17.1687 11.5394 17.5001 11.0811 17.5001H8.91947C8.46119 17.5001 8.07007 17.1687 7.99473 16.7167L7.8168 15.6491C7.76485 15.3374 7.55654 15.0778 7.28007 14.9248C7.21826 14.8905 7.15716 14.8552 7.0968 14.8188C6.82594 14.6552 6.49649 14.6043 6.20019 14.7154L5.18613 15.0953C4.75698 15.256 4.27448 15.083 4.04534 14.6861L2.96452 12.8141C2.73538 12.4172 2.82676 11.9128 3.18057 11.6215L4.01753 10.9325C4.26129 10.7318 4.38212 10.422 4.37627 10.1063C4.37562 10.071 4.37529 10.0356 4.37529 10.0001C4.37529 9.96458 4.37562 9.92918 4.37627 9.89385C4.38212 9.57818 4.26129 9.26831 4.01753 9.06764L3.18057 8.37863C2.82675 8.08735 2.73538 7.58298 2.96452 7.18609L4.04534 5.31406C4.27448 4.91717 4.75698 4.74411 5.18613 4.90489L6.20018 5.28479C6.49648 5.39579 6.82593 5.34494 7.09679 5.18138C7.15715 5.14493 7.21825 5.10958 7.28007 5.07536C7.55654 4.92233 7.76485 4.66268 7.8168 4.35098L7.99473 3.28344Z"
@@ -112,18 +116,16 @@ export default function PlayGame() {
   const { providerId: routeProviderId, gameCode } = useParams<Params>();
   const { user } = useAuth();
   const router = useRouter();
+
   /* ——— state ——— */
   const [url, setUrl] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [sameProvider, setSameProvider] = useState<Game[]>([]);
-  // const [debug, setDebug] = useState<string>("");
-
   const [statsOpen, setStatsOpen] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playMode, setPlayMode] = useState<"real" | "fun">("real");
-
   const [txns, setTxns] = useState<Transaction[] | null>(null);
   const [loadingTxns, setLoadingTxns] = useState(false);
 
@@ -138,7 +140,7 @@ export default function PlayGame() {
       } else {
         await document.exitFullscreen();
       }
-    } catch () {
+    } catch {
       /* ignore – some browsers block without user gesture */
     }
   };
@@ -154,8 +156,9 @@ export default function PlayGame() {
     try {
       const u = await apiClient.launchGame(gameCode, routeProviderId);
       setUrl(mode === "fun" ? `${u}&demo=true` : u);
-    } catch (e: any) {
-      setErr(e.message);
+    } catch (e: unknown) {
+      const err = e as Error;
+      setErr(err.message);
     }
   };
 
@@ -177,16 +180,9 @@ export default function PlayGame() {
         .then((all) => {
           const filtered = all.filter((x) => x.code !== gameCode).slice(0, 12);
           setSameProvider(filtered);
-
-          // if (process.env.NODE_ENV !== "production") {
-          //   setDebug(
-          //     `providerId=${pid} | total=${all.length} | showing=${filtered.length}`
-          //   );
-          // }
         })
         .catch((e: unknown) => {
-          const err = e as Error;
-          console.error(`listGames error for ${pid}:`, err.message);
+          console.error(`listGames error for ${pid}:`, (e as Error).message);
         });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -266,8 +262,8 @@ export default function PlayGame() {
             g.name
           )}`
       );
-    } catch (e: any) {
-      alert(e.message || "Failed to launch game");
+    } catch (e: unknown) {
+      alert((e as Error).message || "Failed to launch game");
     }
   };
 
