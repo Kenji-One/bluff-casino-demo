@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useState } from "react";
 import SideNav from "@/components/nav/SideNav";
 import TopBar from "@/components/nav/TopBar";

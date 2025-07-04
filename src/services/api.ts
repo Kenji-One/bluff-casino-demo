@@ -31,6 +31,7 @@ export interface Game {
   providerCode: string;
   status: "ACTIVE" | "INACTIVE";
   img?: string;
+  imageUrl?: string;
   description?: string;
   minBet?: number;
   maxBet?: number;

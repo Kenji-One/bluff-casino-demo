@@ -11,6 +11,7 @@ export interface Game {
   category: string;
   providerCode: string;
   img: string;
+  imageUrl?: string;
   rank: number;
   status: "active" | "inactive";
   locale: Record<string, string>;

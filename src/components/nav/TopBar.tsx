@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/context/AuthContext";
-import CustomSelect, { SelectOption } from "../settings/shared/CustomSelect";
+import CustomSelect from "../settings/shared/CustomSelect";
 import Button from "@/components/form/Button";
 import { CurrencyIcon } from "../settings/shared";
 /* ─── tiny placeholder icons – swap for real SVGs ─────────────── */
