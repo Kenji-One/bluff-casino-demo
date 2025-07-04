@@ -40,6 +40,7 @@ export interface Game {
   rank?: number;
   providerId?: string;
   providerName?: string;
+  recentlyPlayed?: boolean;
 }
 
 export interface WalletResponse {
