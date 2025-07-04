@@ -102,23 +102,30 @@ export default function GameGrid() {
     }
     try {
       setLoading(true);
-      const res = await apiClient.post(`/games/${filters.provider}/launch`, {
-        gameCode: g.code,
-        currency: "THB",
-        language: "en",
-        isMobileLogin: /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent),
-      });
+      // const res = await apiClient.post(`/games/${filters.provider}/launch`, {
+      //   gameCode: g.code,
+      //   currency: "THB",
+      //   language: "en",
+      //   isMobileLogin: /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent),
+      // });
 
-      const gameUrl = res?.data?.gameUrl || res?.data?.url;
-      if (res.success && gameUrl) {
-        router.push(
-          `/play/${filters.provider}/${g.code}?url=${encodeURIComponent(
-            gameUrl
-          )}&name=${encodeURIComponent(g.name)}`
-        );
-      } else {
-        alert(res.message || "Failed to launch game");
-      }
+      // const gameUrl = res?.data?.gameUrl || res?.data?.url;
+      // if (res.success && gameUrl) {
+      //   router.push(
+      //     `/play/${filters.provider}/${g.code}?url=${encodeURIComponent(
+      //       gameUrl
+      //     )}&name=${encodeURIComponent(g.name)}`
+      //   );
+      // } else {
+      //   alert(res.message || "Failed to launch game");
+      // }
+      const gameUrl = await apiClient.launchGame(g.code, filters.provider);
+      router.push(
+        `/play/${filters.provider}/${g.code}` +
+          `?url=${encodeURIComponent(gameUrl)}&name=${encodeURIComponent(
+            g.name
+          )}`
+      );
     } catch (e: unknown) {
       const err = e as Error;
       alert(err.message || "Failed to launch game");

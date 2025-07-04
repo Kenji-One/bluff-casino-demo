@@ -78,17 +78,24 @@ export default function Hero() {
     try {
       setLoading(true);
 
-      const res = await apiClient.post(`/games/${PRODUCT_ID}/launch`, {
-        gameCode: g.code,
-        currency: "THB",
-        language: "en",
-        isMobileLogin: /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent),
-      });
+      // const res = await apiClient.post(`/games/${PRODUCT_ID}/launch`, {
+      //   gameCode: g.code,
+      //   currency: "THB",
+      //   language: "en",
+      //   isMobileLogin: /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent),
+      // });
 
-      const gameUrl = res?.data?.gameUrl || res?.data?.url;
-      if (!res.success || !gameUrl)
-        throw new Error(res.message || "No game URL");
+      // const gameUrl = res?.data?.gameUrl || res?.data?.url;
+      // if (!res.success || !gameUrl)
+      //   throw new Error(res.message || "No game URL");
 
+      // router.push(
+      //   `/play/${PRODUCT_ID}/${g.code}` +
+      //     `?url=${encodeURIComponent(gameUrl)}&name=${encodeURIComponent(
+      //       g.name
+      //     )}`
+      // );
+      const gameUrl = await apiClient.launchGame(g.code, PRODUCT_ID);
       router.push(
         `/play/${PRODUCT_ID}/${g.code}` +
           `?url=${encodeURIComponent(gameUrl)}&name=${encodeURIComponent(
