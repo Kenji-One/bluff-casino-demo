@@ -1,0 +1,150 @@
+/* @import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"); */
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/gilroy/Gilroy-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/gilroy/Gilroy-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/gilroy/Gilroy-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/gilroy/Gilroy-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/gilroy/Gilroy-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/gilroy/Gilroy-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/gilroy/Gilroy-Black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("/fonts/gilroy/Gilroy-Heavy.ttf") format("truetype");
+  font-weight: 950;
+  font-style: normal;
+  font-display: swap;
+}
+
+@import "tailwindcss";
+
+:root {
+  --profile-img-modal-bg: #111119;
+  --background: #ffffff;
+  --foreground: #171717;
+  --color-brand: #4264ff;
+  --color-accent: #a0a0e1;
+  --color-bg: #0e0b1f;
+  --color-muted: #626273;
+  --color-white: #ffffff;
+  --color-black: #0b0b11;
+  --color-popup-background: #08080899;
+  --color-blue: #3455ed;
+  --color-green: #6cde07;
+  --tab-btn-bg: #1f1f28;
+  --toggle-active-bg: #282834;
+  --button-background-primary-default: #13131b;
+  --footer-bg: #13131b;
+  --burger-btn-bg: #1e1e2c;
+  --input-text-color: #a4a4bd99;
+  --burger-btn-bg-hover: #2e2e3c;
+  --sidenav-background: #111119;
+  --color-error: #ff3b30;
+  --surface-l3: #171721;
+  --secondary-text: #8c8ca6;
+  --secondary-text-2: #3e3e50;
+  --border-b-color: #ffffff0d;
+  --table-cell-primary: #13131b;
+  --gradient-hero: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.5) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  --gradient-hero-2: linear-gradient(
+    180deg,
+    rgba(128, 0, 255, 0) 0%,
+    #8000ff 100%
+  );
+
+  --font-sans: "Gilroy", sans-serif;
+  --font-display: "Poppins", sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0b11;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.bg-hero-gradient {
+  background: var(--gradient-hero);
+  height: 50%;
+  width: 100%;
+}
+
+.bg-hero-gradient-2 {
+  background: var(--gradient-hero-2);
+  mix-blend-mode: plus-lighter;
+  opacity: 0.6;
+  height: 70%;
+  width: 100%;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
