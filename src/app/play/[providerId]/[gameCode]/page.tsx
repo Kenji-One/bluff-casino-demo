@@ -107,7 +107,7 @@ const SettingsIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 /* ---------- params ---------- */
-interface Params {
+interface Params extends Record<string, string> {
   providerId: string;
   gameCode: string;
 }
