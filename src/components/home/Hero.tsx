@@ -55,7 +55,7 @@ export default function Hero() {
         // );
         const mapped = raw.map((g: Game) => ({
           ...g,
-          imageUrl: (g as any).imageUrl || (g as any).img || "",
+          imageUrl: g.imageUrl ?? g.img ?? "",
         }));
 
         setGames(mapped);

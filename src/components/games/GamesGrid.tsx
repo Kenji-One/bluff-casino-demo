@@ -72,7 +72,7 @@ export default function GameGrid() {
 
       const normalized: Game[] = list.map((g: Game) => ({
         ...g,
-        imageUrl: (g as any).imageUrl || (g as any).img || "",
+        imageUrl: g.imageUrl ?? g.img ?? "",
       }));
 
       setGames((prev) => (replace ? normalized : [...prev, ...normalized]));
