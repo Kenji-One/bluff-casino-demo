@@ -13,6 +13,7 @@ import axios, { AxiosInstance } from "axios";
 export interface User {
   id: string;
   username: string;
+  avatarUrl?: string;
   email: string;
   joinDate: string;
   referralCode?: string;
