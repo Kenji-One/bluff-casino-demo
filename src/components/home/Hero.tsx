@@ -128,7 +128,7 @@ export default function Hero() {
           height={250}
         />
         <Image
-          src="/images/heroIMG2.svg"
+          src="/images/HeroIMG2.svg"
           alt="Weekly Race"
           width={600}
           height={250}
