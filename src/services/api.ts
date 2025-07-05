@@ -22,6 +22,15 @@ export interface User {
   updatedAt: string;
 }
 
+export interface WalletResponse {
+  success: boolean;
+  message: string;
+  data: {
+    balance: number;
+    transactions?: Transaction[];
+  };
+}
+
 export interface RawGamesResponse {
   success?: boolean;
   message?: string;
