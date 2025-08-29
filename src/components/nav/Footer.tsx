@@ -90,10 +90,10 @@ export default function Footer() {
   ];
 
   return (
-    <footer className="mt-8 p-4">
-      <div className="mx-auto pb-8 mb-12 max-w-screen-2xl rounded-2xl bg-[var(--footer-bg)]">
+    <footer className="mt-8 lg:p-4">
+      <div className="mx-auto pb-[80px] lg:pb-8 lg:mb-12 max-w-screen-2xl lg:rounded-2xl bg-[var(--footer-bg)] border-t border-[var(--border-b-color)] lg:border-none">
         {/* ——— top bar ——— */}
-        <div className="flex flex-wrap items-center justify-between gap-4 px-8 py-8 pb-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-4 lg:px-8 py-8 pb-6">
           {/* logo + copyright */}
           <div>
             <Link
@@ -225,7 +225,7 @@ export default function Footer() {
         <hr className="border-white/10" />
 
         {/* ——— middle grid ——— */}
-        <div className="grid gap-10 px-8 pb-8 pt-6 md:grid-cols-5 ">
+        <div className="grid gap-10 px-4 lg:px-8 pb-6 lg:pb-8 pt-6 md:grid-cols-5 ">
           {/* nav columns */}
           <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-8">
             {groups.map((grp) => (
@@ -269,7 +269,7 @@ export default function Footer() {
         </div>
 
         {/* ——— disclaimer ——— */}
-        <p className="px-8 text-justify text-xs leading-relaxed text-[var(--secondary-text-2)]">
+        <p className="px-4 lg:px-8 text-justify text-xs leading-relaxed text-[var(--secondary-text-2)]">
           Visabet is owned and operated by Natural Nine B.V., Curaçao company
           registration number 160998, with its registered address at
           Korporaalweg 10, Willemstad, Curaçao and is licensed by the Curaçao

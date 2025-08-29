@@ -21,7 +21,7 @@ export default function Button({
   btntype = "btn",
   onClick,
   className = "",
-  padding = "px-6 py-4",
+  padding = "px-2 sm:px-4 py-3 lg:px-6 lg:py-4",
   label,
   icon,
   fullWidth = false,

@@ -18,7 +18,7 @@ export default function PrefRow({
 }: PrefRowProps) {
   if (layout === "toggle") {
     return (
-      <Card className="flex items-center gap-4">
+      <Card className="flex items-center gap-4 flex-wrap">
         {children}
         <div>
           <p className="font-medium leading-none">{label}</p>
@@ -31,10 +31,10 @@ export default function PrefRow({
   if (layout === "toggle+select") {
     const [toggleEl, selectEl] = React.Children.toArray(children);
     return (
-      <Card className="flex items-center justify-between gap-4">
+      <Card className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           {toggleEl}
-          <div>
+          <div className="flex-1">
             <p className="font-medium leading-none">{label}</p>
             {sub && <p className="text-xs text-gray-400 mt-2 ">{sub}</p>}
           </div>
@@ -45,7 +45,7 @@ export default function PrefRow({
   }
 
   return (
-    <Card className="flex items-center justify-between gap-4 ">
+    <Card className="flex items-center justify-between gap-4 flex-wrap">
       <div>
         <p className="font-medium leading-none">{label}</p>
         {sub && <p className="text-xs text-gray-400 mt-2 ">{sub}</p>}

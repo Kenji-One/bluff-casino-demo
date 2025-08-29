@@ -1,19 +1,20 @@
 /* ------------------------------------------------------------------
- *  TwinaceApi – merged version
- *  – Keeps your original login / register handlers
- *  – Adds: deposit / withdraw, transactions, advanced launch fallback,
- *          username helper, generic HTTP helpers, etc.
+ *  src/services/api.ts  (public endpoints fixed)
  * ----------------------------------------------------------------- */
 
 "use client";
 
-import axios, { AxiosInstance } from "axios";
+import axios, {
+  AxiosInstance,
+  AxiosRequestConfig,
+  InternalAxiosRequestConfig,
+} from "axios";
 
 /* ---------- shared types ---------- */
 export interface User {
   id: string;
   username: string;
-  avatarUrl?: string;
+  profilePicture?: string;
   email: string;
   joinDate: string;
   referralCode?: string;
@@ -22,20 +23,20 @@ export interface User {
   updatedAt: string;
 }
 
+export interface Transaction {
+  id: string;
+  type: "DEPOSIT" | "WITHDRAW" | "BET" | "WIN";
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  description: string;
+  createdAt: string;
+}
+
 export interface WalletResponse {
   success: boolean;
   message: string;
-  data: {
-    balance: number;
-    transactions?: Transaction[];
-  };
-}
-
-export interface RawGamesResponse {
-  success?: boolean;
-  message?: string;
-  data?: { games?: Game[] };
-  games?: Game[];
+  data: { balance: number; transactions?: Transaction[] };
 }
 
 export interface Game {
@@ -60,100 +61,268 @@ export interface Game {
   recentlyPlayed?: boolean;
 }
 
-export interface ProductsResponse {
-  success: boolean;
-  message: string;
-  data: { products: string[] };
+export interface RawGamesResponse {
+  success?: boolean;
+  message?: string;
+  data?: {
+    games?: Game[];
+    [key: string]: any;
+  };
+  games?: Game[];
 }
 
-export interface WalletResponse {
-  success: boolean;
-  message: string;
-  data: { balance: number; transactions?: Transaction[] };
+/* ---------- helpers ---------- */
+function getAccess() {
+  return typeof window !== "undefined"
+    ? localStorage.getItem("accessToken")
+    : null;
+}
+function getRefresh() {
+  return typeof window !== "undefined"
+    ? localStorage.getItem("refreshToken")
+    : null;
+}
+function saveTokens(d: { accessToken?: string; refreshToken?: string }) {
+  if (d.accessToken) localStorage.setItem("accessToken", d.accessToken);
+  if (d.refreshToken) localStorage.setItem("refreshToken", d.refreshToken);
+}
+function clearTokens() {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
 }
 
-export interface Transaction {
-  id: string;
-  type: "DEPOSIT" | "WITHDRAW" | "BET" | "WIN";
-  amount: number;
-  balanceBefore: number;
-  balanceAfter: number;
-  description: string;
-  createdAt: string;
-}
+/** Endpoints that must stay public (no auth header, no cookies). */
+const PUBLIC_PATHS = [
+  "/seamless/games",
+  "/games", // listing endpoints under /games...
+];
 
 /* ---------- client ---------- */
 class TwinaceApi {
   private c: AxiosInstance;
+  private refreshClient: AxiosInstance;
+
+  private isRefreshing = false;
+  private pendingQueue: Array<(token: string | null) => void> = [];
 
   constructor() {
+    const baseURL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+    // DEFAULT CLIENT: no credentials; public endpoints won’t be blocked by CORS.
     this.c = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
+      baseURL,
       timeout: 10_000,
       headers: { "Content-Type": "application/json" },
     });
 
-    /* attach access token */
-    this.c.interceptors.request.use((cfg) => {
-      const t =
-        typeof window !== "undefined"
-          ? localStorage.getItem("accessToken")
-          : null;
-      if (t) cfg.headers.Authorization = `Bearer ${t}`;
+    // Refresh client (no cookies needed).
+    this.refreshClient = axios.create({
+      baseURL,
+      timeout: 10_000,
+      headers: { "Content-Type": "application/json" },
+    });
+
+    this.c.interceptors.request.use((cfg: InternalAxiosRequestConfig) => {
+      const url = (cfg.url || "").toString();
+      const isPublic = PUBLIC_PATHS.some((p) => url.startsWith(p));
+
+      // Only attach Authorization for non-public endpoints.
+      if (!isPublic) {
+        const t = getAccess();
+        if (t) {
+          cfg.headers = cfg.headers || {};
+          (cfg.headers as any).Authorization = `Bearer ${t}`;
+        }
+      }
       return cfg;
     });
 
-    /* refresh token on 401 */
     this.c.interceptors.response.use(
       (r) => r,
       async (err) => {
-        const orig = err.config;
-        if (err.response?.status === 401 && !orig._retry) {
-          orig._retry = true;
-          const rt = localStorage.getItem("refreshToken");
-          if (rt) {
-            const { data } = await this.c.post("/auth/refresh", {
-              refreshToken: rt,
-            });
-            this.writeTokens(data.data);
-            return this.c(orig);
-          }
+        const orig = err.config as AxiosRequestConfig & { _retry?: boolean };
+
+        if (!err.response || err.response.status !== 401) {
+          return Promise.reject(err);
         }
-        return Promise.reject(err);
+
+        const url = (orig?.url || "").toString();
+        // Never try to refresh for public endpoints.
+        if (PUBLIC_PATHS.some((p) => url.startsWith(p))) {
+          return Promise.reject(err);
+        }
+
+        // Don’t loop on refresh endpoints
+        if (
+          url.includes("/auth/refresh") ||
+          url.includes("/auth/refresh-token")
+        ) {
+          return Promise.reject(err);
+        }
+
+        if (orig._retry) return Promise.reject(err);
+        orig._retry = true;
+
+        const rt = getRefresh();
+        if (!rt) return Promise.reject(err);
+
+        if (this.isRefreshing) {
+          const token = await new Promise<string | null>((resolve) => {
+            this.pendingQueue.push(resolve);
+          });
+          if (token) {
+            orig.headers = orig.headers || {};
+            (orig.headers as any).Authorization = `Bearer ${token}`;
+          }
+          return this.c(orig);
+        }
+
+        this.isRefreshing = true;
+        try {
+          const { data } = await this.refreshClient.post(
+            "/auth/refresh-token",
+            { refreshToken: rt }
+          );
+
+          const newAccess: string | undefined = data?.data?.accessToken;
+          const newRefresh: string | undefined = data?.data?.refreshToken;
+          if (!newAccess) throw new Error("Invalid refresh response");
+
+          saveTokens({ accessToken: newAccess, refreshToken: newRefresh });
+
+          this.pendingQueue.forEach((fn) => fn(newAccess));
+          this.pendingQueue = [];
+
+          orig.headers = orig.headers || {};
+          (orig.headers as any).Authorization = `Bearer ${newAccess}`;
+          return this.c(orig);
+        } catch (e) {
+          clearTokens();
+          this.pendingQueue.forEach((fn) => fn(null));
+          this.pendingQueue = [];
+          return Promise.reject(e);
+        } finally {
+          this.isRefreshing = false;
+        }
       }
     );
   }
 
-  /* ---------- generic http helpers (type-safe, no 'any') ---------- */
-  async get<T = unknown>(url: string): Promise<T> {
-    const { data } = await this.c.get<T>(url);
-    return data;
+  /* ---------- generic http helpers ---------- */
+  async get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const { data } = await this.c.get<T>(url, config);
+    return data as T;
   }
-
+  async patch<T = unknown, B = unknown>(
+    url: string,
+    body?: B,
+    config?: any
+  ): Promise<T> {
+    const { data } = await this.c.patch<T>(url, body, config);
+    return data as T;
+  }
   async post<T = unknown, B = unknown>(url: string, body?: B): Promise<T> {
     const { data } = await this.c.post<T>(url, body);
-    return data;
+    return data as T;
   }
-
   async put<T = unknown, B = unknown>(url: string, body?: B): Promise<T> {
     const { data } = await this.c.put<T>(url, body);
-    return data;
+    return data as T;
+  }
+  async delete<T = unknown>(url: string, config?: any): Promise<T> {
+    const { data } = await this.c.delete<T>(url, config);
+    return data as T;
+  }
+  async download<T = unknown>(url: string, config?: any): Promise<T> {
+    const { data } = await this.c.get<T>(url, { ...config });
+    return data as T;
   }
 
-  async delete<T = unknown>(url: string): Promise<T> {
-    const { data } = await this.c.delete<T>(url);
-    return data;
-  }
+  /* ---------- auth ---------- */
+  async login(
+    usernameOrEmail: string,
+    password: string,
+    twoFactorCode?: string
+  ) {
+    const payload: Record<string, unknown> = { usernameOrEmail, password };
+    if (twoFactorCode?.trim()) payload.twoFactorCode = twoFactorCode.trim();
 
-  /* ---------- auth (unchanged from your version) ---------- */
-  async login(usernameOrEmail: string, password: string) {
-    const { data } = await this.c.post("/auth/login", {
-      usernameOrEmail,
-      password,
+    // No credentials globally; 2FA flow works because we re-post /auth/login with the code.
+    const { data } = await this.c.post("/auth/login", payload);
+
+    if (data?.requiresTwoFactor || data?.twoFactorRequired) {
+      const err: any = new Error(data?.message || "2FA code required");
+      err.__twoFARequired = true;
+      err.userId = data?.userId ?? data?.data?.userId ?? null;
+      err.twoFactorMethod = data?.twoFactorMethod ?? "authenticator";
+      err.response = { data };
+      throw err;
+    }
+
+    saveTokens({
+      accessToken: data?.data?.accessToken,
+      refreshToken: data?.data?.refreshToken,
     });
-    this.writeTokens(data.data);
+
     return data.data.user as User;
   }
+
+  /** Email 2FA code (send/resend) – requires temp cookie; send with credentials */
+  async sendLoginTwoFactorCode(userId?: string | null) {
+    await this.c.post(
+      "/user-settings/security/2fa/email/send-code",
+      userId ? { userId } : {},
+      { withCredentials: true }
+    );
+  }
+
+  /** Verify 2FA during login (email or authenticator).
+   * Email verification needs the temp cookie → withCredentials: true.
+   */
+  async verifyTwoFactorLogin(
+    userId: string | undefined,
+    code: string,
+    method?: string | null
+  ) {
+    const m = (method ?? "").toLowerCase();
+
+    if (m === "email") {
+      const { data } = await this.c.post(
+        "/user-settings/security/2fa/email/verify",
+        { code },
+        { withCredentials: true }
+      );
+      saveTokens({
+        accessToken: data?.data?.accessToken,
+        refreshToken: data?.data?.refreshToken,
+      });
+      return data.data.user as User;
+    }
+
+    const candidates = [
+      "/user-settings/security/2fa/authenticator/verify",
+      "/user-settings/security/2fa/verify",
+    ];
+
+    let lastErr: unknown = null;
+    for (const p of candidates) {
+      try {
+        const { data } = await this.c.post(p, {
+          code,
+          ...(userId ? { userId } : {}),
+        });
+        saveTokens({
+          accessToken: data?.data?.accessToken,
+          refreshToken: data?.data?.refreshToken,
+        });
+        return data.data.user as User;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr ?? new Error("Failed to verify 2FA code");
+  }
+
   async register(
     username: string,
     email: string,
@@ -168,13 +337,59 @@ class TwinaceApi {
       agreedToTerms,
     };
     if (referralCode?.trim()) payload.referralCode = referralCode.trim();
-
     const { data } = await this.c.post("/auth/register", payload);
-    this.writeTokens(data.data);
+
+    saveTokens({
+      accessToken: data?.data?.accessToken,
+      refreshToken: data?.data?.refreshToken,
+    });
+
     return data.data.user as User;
   }
+
   logout() {
-    localStorage.clear();
+    clearTokens();
+  }
+
+  async forgotPassword(email: string) {
+    await this.c.post("/auth/forgot-password", { email });
+  }
+
+  async resetPassword(
+    token: string,
+    newPassword: string,
+    confirmPassword: string
+  ) {
+    await this.c.post("/auth/reset-password", {
+      token,
+      newPassword,
+      confirmPassword,
+    });
+  }
+
+  /* ─── email verification ── */
+  async startEmailVerification(email?: string) {
+    const body = email ? { email } : {};
+    await this.c.post("/user-settings/verification/email/start", body);
+  }
+  async verifyEmailCode(code: string) {
+    await this.c.post("/user-settings/verification/email/verify-code", {
+      code,
+    });
+  }
+  async verifyEmail(token: string) {
+    await this.c.post("/user-settings/verification/email/verify", { token });
+  }
+  async resendVerification(email?: string) {
+    const body = email ? { email } : {};
+    await this.c.post("/user-settings/verification/email/resend", body);
+  }
+  async checkVerificationStatus(): Promise<boolean> {
+    const { data } = await this.c.get(
+      "/user-settings/verification/email/status"
+    );
+    const d = data?.data ?? data;
+    return Boolean(d?.emailVerified ?? d?.verified ?? false);
   }
 
   /* ---------- profile / wallet ---------- */
@@ -189,52 +404,43 @@ class TwinaceApi {
 
   async deposit(amount: number): Promise<WalletResponse> {
     const { data } = await this.c.post("/wallet/deposit", { amount });
-    return data;
+    return data as WalletResponse;
   }
-
   async getBalance() {
-    /* components call apiClient.getBalance() */
     return this.balance();
   }
-
   async getTransactions(limit = 50, offset = 0) {
-    /* components call apiClient.getTransactions() */
     return this.transactions(limit, offset);
   }
-
   async withdraw(amount: number): Promise<WalletResponse> {
     const { data } = await this.c.post("/wallet/withdraw", { amount });
-    return data;
+    return data as WalletResponse;
   }
-
   async transactions(limit = 50, offset = 0): Promise<WalletResponse> {
     const { data } = await this.c.get(
-      `/wallet/transactions?limit=${limit}&offset=${offset}`
+      `/user-settings/transactions?limit=${limit}&offset=${offset}`
     );
-    return data;
+    return data as WalletResponse;
   }
 
-  /* ---------- games ---------- */
+  /* ---------- games (PUBLIC) ---------- */
   async listGames(filters?: {
     type?: string;
     category?: string;
-    providerId?: string; // ← renamed; old “provider” no longer used
+    providerId?: string;
     search?: string;
     limit?: number;
   }) {
     const productId = filters?.providerId ?? "JOKER";
-
-    /* 1️⃣  call the endpoint */
+    // Public: no auth header, no cookies (interceptor already enforces this).
     const { data } = await this.c.get(`/seamless/games?productId=${productId}`);
 
-    /* 2️⃣  normalise the many response shapes we’ve seen */
     let games: Game[] = [];
     if (Array.isArray(data?.data)) games = data.data;
     else if (Array.isArray(data?.data?.games)) games = data.data.games;
     else if (Array.isArray(data?.games)) games = data.games;
-    else games = []; // fallback
+    else games = [];
 
-    /* 3️⃣  optional filters */
     if (filters?.type) games = games.filter((g) => g.type === filters.type);
     if (filters?.category)
       games = games.filter((g) => g.category === filters.category);
@@ -242,11 +448,8 @@ class TwinaceApi {
       games = games.filter((g) =>
         g.name.toLowerCase().includes(filters.search!.toLowerCase())
       );
-
-    /* 4️⃣  cap for carousels */
     if (filters?.limit) games = games.slice(0, filters.limit);
 
-    /* 5️⃣  quick debug (DEV only) */
     if (process.env.NODE_ENV !== "production") {
       console.log(
         `[listGames] providerId=${productId} → ${games.length} games`
@@ -256,7 +459,6 @@ class TwinaceApi {
     return games;
   }
 
-  /** header data for the single-slot page */
   async getGameMeta(gameCode: string, providerId: string) {
     const games = await this.listGames({ providerId });
     return games.find((g) => g.code === gameCode) ?? null;
@@ -265,7 +467,6 @@ class TwinaceApi {
   async launchGame(gameCode: string, providerId: string) {
     const isMobile = /Mobile|Android/i.test(navigator.userAgent);
 
-    /* 1) unified endpoint */
     try {
       const { data } = await this.c.post(`/games/${providerId}/launch`, {
         gameCode,
@@ -279,7 +480,6 @@ class TwinaceApi {
       console.log("Unified launch failed, fallback to seamless…");
     }
 
-    /* 2) seamless fallback */
     const sessionToken = this.generateSessionToken();
     try {
       const { data } = await this.c.post("/seamless/logIn", {
@@ -299,18 +499,13 @@ class TwinaceApi {
       console.error("Seamless launch failed:", e);
     }
 
-    /* 3) as a last resort return an internal demo url */
     const demo = `${
       window.location.origin
-    }/game-demo?game=${gameCode}&provider=${providerId}&username=${this.getCurrentUsername()}&session=${sessionToken}`;
+    }/game-demo?game=${gameCode}&provider=${providerId}&username=${this.getCurrentUsername()}&session=${this.generateSessionToken()}`;
     return demo;
   }
 
-  /* ---------- helpers ---------- */
-  private writeTokens(d: { accessToken: string; refreshToken: string }) {
-    localStorage.setItem("accessToken", d.accessToken);
-    localStorage.setItem("refreshToken", d.refreshToken);
-  }
+  /* ---------- misc helpers ---------- */
   private generateSessionToken() {
     return `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
   }
@@ -325,7 +520,7 @@ class TwinaceApi {
       try {
         return JSON.parse(profileStr).username;
       } catch {}
-    const access = localStorage.getItem("accessToken");
+    const access = getAccess();
     if (access) {
       try {
         return JSON.parse(atob(access.split(".")[1])).username;

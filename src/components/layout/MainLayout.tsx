@@ -1,41 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import SideNav from "@/components/nav/SideNav";
 import TopBar from "@/components/nav/TopBar";
-// import BottomNav from "@/components/nav/BottomNav";
-// import Hero from "../home/Hero";
-import RegisterLoginModal from "./RegisterLoginModal"; // 👈 import the modal
+import RegisterLoginModal from "./RegisterLoginModal";
 import Footer from "@/components/nav/Footer";
+import SearchModal from "@/components/search/SearchModal"; // ← import the new search modal
 
 export default function MainLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // const pathname = usePathname();
-  // const isHomePage = pathname === "/";
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [mode, setMode] = useState<"register" | "login">("register");
+  const [mode, setMode] = useState<"register" | "login" | "reset">("register");
+
+  // ✅ NEW: Search modal state
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const token = searchParams.get("token");
+    if (token) {
+      setMode("reset");
+      setIsModalOpen(true);
+    }
+  }, [searchParams]);
 
   return (
-    <div className="flex flex-col lg:flex-row bg-[#0B0B11] text-white pt-[22px] pr-2 max-w-[1396px] mx-auto">
-      <SideNav />
+    <div className="flex flex-col lg:flex-row bg-[#0B0B11] text-white pt-4 lg:pt-[22px] lg:pr-2 max-w-[1440px] mx-auto">
+      {/* Pass search modal toggle into SideNav */}
+      <SideNav onOpenSearch={() => setIsSearchOpen(true)} />
 
-      <div className="flex-1 flex flex-col">
-        <TopBar setIsModalOpen={setIsModalOpen} setMode={setMode} />
-        <main className="flex-1 p-4 overflow-y-auto">{children}</main>
-        <Footer />
-        {/* <BottomNav /> */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Pass search modal toggle into TopBar */}
+        <TopBar
+          setIsModalOpen={setIsModalOpen}
+          setMode={setMode}
+          onOpenSearch={() => setIsSearchOpen(true)}
+        />
+        <main className="flex-1 p-4 min-w-0 overflow-y-auto overflow-x-hidden">
+          {children}
+        </main>
+
+        {pathname !== "/settings" && <Footer />}
       </div>
 
-      {/* 🔥 Modal Hooked In */}
+      {/* 🔍 Global Search Modal */}
+      <SearchModal open={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+
       <RegisterLoginModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        mode={mode}
-        setMode={setMode}
+        initialMode={mode}
       />
     </div>
   );

@@ -13,7 +13,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`bg-[var(--button-background-primary-default)] rounded-lg p-4 ${className}`}
+      className={`bg-[var(--button-background-primary-default)] rounded-lg p-4 lg:p-[18px] ${className}`}
     >
       {children}
     </div>

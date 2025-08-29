@@ -2,9 +2,13 @@
 
 import { Card, Header, Stat } from "./shared";
 import { useAuth } from "@/context/AuthContext";
+import { useState } from "react";
+import AvatarModal from "./AvatarModal";
 
 export default function AccountTab() {
-  const { user } = useAuth(); // user is now flat again
+  const { user, refreshUser } = useAuth(); // user is now flat again
+  const [avatarOpen, setAvatarOpen] = useState(false);
+
   if (!user) return null;
   const { email, username, joinDate } = user ?? {};
 
@@ -32,7 +36,10 @@ export default function AccountTab() {
         <Card className="flex-1 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
-              src="images/zd.jpg"
+              src={
+                user.profilePicture ||
+                "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Aidan"
+              }
               alt="avatar"
               className="w-[44px] h-[44px] rounded-full object-cover"
             />
@@ -41,7 +48,12 @@ export default function AccountTab() {
               <p className="text-xs text-gray-500">Unranked</p>
             </div>
           </div>
-          <button className="p-2 rounded-full hover:bg-[#2A2A30] transition-colors cursor-pointer">
+          <button
+            onClick={() => setAvatarOpen(true)}
+            className="p-2 rounded-full hover:bg-[#2A2A30] transition-colors cursor-pointer"
+            aria-label="Edit profile picture"
+            title="Edit profile picture"
+          >
             <svg
               width="24"
               height="24"
@@ -65,7 +77,7 @@ export default function AccountTab() {
           </button>
         </Card>
 
-        <Card className="flex-1 min-w-[260px] grid grid-cols-3 gap-4 text-sm text-gray-300">
+        <Card className="flex-1 min-w-[260px] flex items-center flex-wrap justify-between gap-4 text-sm text-gray-300">
           <Stat label="Join Date" value={formattedJoinDate} />
           <Stat label="Total Bets" value="1000" />
           <Stat
@@ -126,6 +138,15 @@ export default function AccountTab() {
           </div>
         </Card>
       </div>
+      {/* Avatar modal */}
+      {avatarOpen && (
+        <AvatarModal
+          open={avatarOpen}
+          onClose={() => setAvatarOpen(false)}
+          currentUrl={user.profilePicture}
+          onChanged={refreshUser}
+        />
+      )}
     </section>
   );
 }

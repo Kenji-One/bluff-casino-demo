@@ -14,31 +14,21 @@ interface Props {
   viewAllHref?: string;
 }
 
-/* ─────────────── configuration ─────────────── */
-const GAP_PX = 14; // 14-px gap everywhere
-const H_RATIO = 200.535 / 150; // keep original aspect
+const GAP_PX = 14;
+const H_RATIO = 200.535 / 150;
 const CARD_SIZES = [150, 130, 110] as const;
-const MAX_VISIBLE = 6; // never render more than 6 slots
-const SIDE_MARGIN = 64; // safety padding for layout calc
 
-/* pick best (cardW, visible) so row fits incl. View-All card */
-function calcLayout(winW: number, withViewAll: boolean) {
+function calcLayout(containerW: number) {
   for (const cw of CARD_SIZES) {
-    // usable width after margins and the View-All card (if any)
-    const safe = winW - SIDE_MARGIN - (withViewAll ? cw + GAP_PX : 0);
-    const vis = Math.floor((safe + GAP_PX) / (cw + GAP_PX));
-    if (vis >= 2) {
-      return { cardW: cw, visible: Math.min(vis, MAX_VISIBLE) };
-    }
+    const vis = Math.floor((containerW + GAP_PX) / (cw + GAP_PX));
+    if (vis >= 2) return { cardW: cw, visible: vis, vpW: containerW };
   }
-  // ultra-narrow fallback
   const cw = CARD_SIZES.at(-1)!;
-  return { cardW: cw, visible: 1 };
+  return { cardW: cw, visible: 1, vpW: containerW };
 }
 
-/* timings */
 const TRANSITION_MS = 300;
-const AUTOPLAY_MS = 4000;
+// const AUTOPLAY_MS = 4000; // ← disabled for now
 
 export default function GameCarouselSection({
   title,
@@ -47,40 +37,48 @@ export default function GameCarouselSection({
   onPlay,
   viewAllHref,
 }: Props) {
-  /* responsive layout */
-  const withViewAll = !!viewAllHref;
-  const [{ cardW, visible }, setLayout] = useState(() =>
-    typeof window === "undefined"
-      ? { cardW: 150, visible: MAX_VISIBLE } // SSR
-      : calcLayout(window.innerWidth, withViewAll)
-  );
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  const [{ cardW, visible, vpW }, setLayout] = useState(() => ({
+    cardW: 150,
+    visible: 6,
+    vpW: 0,
+  }));
 
   const cardH = Math.round(cardW * H_RATIO);
   const STEP = cardW + GAP_PX;
-  const viewportW = visible * cardW + (visible - 1) * GAP_PX;
 
-  /* update on resize */
+  // observe container width so viewport always equals container (allows partial cards)
   useEffect(() => {
-    const onResize = () =>
-      setLayout(calcLayout(window.innerWidth, withViewAll));
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [withViewAll]);
+    const el = rowRef.current;
+    if (!el) return;
+    const compute = () => {
+      const w = el.clientWidth;
+      setLayout(calcLayout(w));
+    };
+    compute();
+    const ro = new ResizeObserver(() => compute());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   /* carousel state */
   const [idx, setIdx] = useState(0);
   const [anim, setAnim] = useState(false);
   const [paused, setPause] = useState(false);
 
-  /* clamp idx when layout changes */
-  useEffect(() => {
-    const max = Math.max(games.length - visible, 0);
-    setIdx((i) => (i > max ? max : i));
-  }, [visible, games.length]);
+  // derive max index from track width and viewport width (allows partial end)
+  const trackW = games.length * cardW + Math.max(games.length - 1, 0) * GAP_PX;
+  const maxOffsetPx = Math.max(trackW - vpW, 0);
+  const maxIdx = Math.ceil(maxOffsetPx / STEP);
+  const canLeft = idx < maxIdx; // move right visually
+  const canRight = idx > 0; // move left visually
 
-  const maxIdx = Math.max(games.length - visible, 0);
-  const canLeft = idx < maxIdx;
-  const canRight = idx > 0;
+  // adjust index if layout changes
+  useEffect(() => {
+    setIdx((i) => (i > maxIdx ? maxIdx : i));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxIdx, cardW, vpW, games.length]);
 
   const shiftLeft = () =>
     canLeft && !anim && (setAnim(true), setIdx((i) => i + 1));
@@ -88,46 +86,50 @@ export default function GameCarouselSection({
     canRight && !anim && (setAnim(true), setIdx((i) => i - 1));
   const onEnd = () => setAnim(false);
 
-  /* autoplay */
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ── autoplay disabled ─────────────────────────────────────
+  /*
   useEffect(() => {
-    if (paused || !canLeft) {
-      if (timer.current) {
-        clearInterval(timer.current);
-        timer.current = null;
-      }
-      return; // returns undefined, which React accepts
-    }
-    timer.current = setInterval(shiftLeft, AUTOPLAY_MS);
-    return () => {
-      if (timer.current) {
-        clearInterval(timer.current);
-        timer.current = null;
-      }
-    };
-  }, [idx, paused, canLeft, shiftLeft]);
+    if (paused || !canLeft) return;
+    const t = setInterval(shiftLeft, AUTOPLAY_MS);
+    return () => clearInterval(t);
+  }, [paused, canLeft]);
+  */
 
-  /* ─────────────── render ─────────────── */
   return (
     <section className="mb-6">
       {/* header */}
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="flex items-center gap-1 text-lg font-extrabold text-white tracking-[-0.36px]">
           {icon}
           {title}
         </h3>
 
-        {/* desktop arrows */}
-        <div className="hidden md:flex gap-2">
-          {/* ← */}
+        {/* right controls: View all + arrows */}
+        <div className="hidden md:flex items-strech gap-2">
+          {viewAllHref && (
+            <a
+              href={viewAllHref}
+              className="group relative flex items-center rounded-full px-4 py-2 
+             bg-[var(--sidenav-background)] text-sm font-semibold text-white 
+             overflow-hidden"
+            >
+              <span className="relative z-10">View all</span>
+              <span
+                className="absolute inset-0 z-0 bg-[url('/images/view-all-bg.svg')] bg-cover bg-center 
+               opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              />
+            </a>
+          )}
+
           <button
             onClick={shiftRight}
             disabled={!canRight}
             className={clsx(
-              "rounded-full p-3 bg-[var(--sidenav-background)] hover:bg-white/5",
+              "rounded-full p-2 bg-[var(--sidenav-background)] hover:bg-white/5 transition-colors duration-200 cursor-pointer",
               !canRight &&
                 "opacity-30 cursor-default hover:bg-[var(--sidenav-background)]"
             )}
+            aria-label="Previous"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path
@@ -139,15 +141,15 @@ export default function GameCarouselSection({
               />
             </svg>
           </button>
-          {/* → */}
           <button
             onClick={shiftLeft}
             disabled={!canLeft}
             className={clsx(
-              "rounded-full p-3 bg-[var(--sidenav-background)] hover:bg-white/5",
+              "rounded-full p-2 bg-[var(--sidenav-background)] hover:bg-white/5 transition-colors duration-200 cursor-pointer",
               !canLeft &&
                 "opacity-30 cursor-default hover:bg-[var(--sidenav-background)]"
             )}
+            aria-label="Next"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path
@@ -162,12 +164,12 @@ export default function GameCarouselSection({
         </div>
       </div>
 
-      {/* row */}
-      <div className="flex flex-nowrap items-start gap-[14px]">
-        {/* viewport */}
+      {/* row (measured + clipped to container width) */}
+      <div ref={rowRef} className="relative w-full min-w-0">
+        {/* viewport = full container width */}
         <div
-          className="relative overflow-hidden flex-shrink-0"
-          style={{ width: viewportW }}
+          className="relative overflow-hidden"
+          style={{ width: "100%" }}
           onMouseEnter={() => setPause(true)}
           onMouseLeave={() => setPause(false)}
         >
@@ -180,16 +182,24 @@ export default function GameCarouselSection({
               transition: anim ? `transform ${TRANSITION_MS}ms ease` : "none",
             }}
           >
-            {games.map((g, i) => (
-              <div
-                key={g.id ?? `${g.providerId}-${g.code}` ?? i}
-                style={{ width: cardW, height: cardH }}
-                className="flex-shrink-0 cursor-pointer"
-                onClick={() => onPlay?.(g)}
-              >
-                <CarouselCard game={g} />
-              </div>
-            ))}
+            {games.map((g, i) => {
+              // Safe, deterministic key (fixes TS2881 warning)
+              const key =
+                g.id ??
+                (g.providerId && g.code
+                  ? `${g.providerId}-${g.code}`
+                  : `i-${i}`);
+              return (
+                <div
+                  key={key}
+                  style={{ width: cardW, height: cardH }}
+                  className="flex-shrink-0 cursor-pointer"
+                  onClick={() => onPlay?.(g)}
+                >
+                  <CarouselCard game={g} />
+                </div>
+              );
+            })}
           </div>
 
           {/* mobile arrows */}
@@ -202,6 +212,7 @@ export default function GameCarouselSection({
                 !canRight &&
                   "opacity-30 cursor-default hover:bg-[var(--sidenav-background)]"
               )}
+              aria-label="Previous"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                 <path
@@ -221,6 +232,7 @@ export default function GameCarouselSection({
                 !canLeft &&
                   "opacity-30 cursor-default hover:bg-[var(--sidenav-background)]"
               )}
+              aria-label="Next"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                 <path
@@ -233,22 +245,15 @@ export default function GameCarouselSection({
               </svg>
             </button>
           </div>
-        </div>
 
-        {/* View-All */}
-        {withViewAll && (
-          <div
-            style={{ width: cardW, height: cardH }}
-            className="flex-shrink-0 bg-[url('/images/view-all-bg.svg')] bg-cover bg-center"
-          >
-            <a
-              href={viewAllHref!}
-              className="flex h-full w-full items-center justify-center rounded-xl text-lg font-semibold text-white hover:bg-white/5"
-            >
-              View All
-            </a>
-          </div>
-        )}
+          {/* edge fades (darker) */}
+          {canRight && (
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-black/90 to-transparent" />
+          )}
+          {canLeft && (
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-black/90 to-transparent" />
+          )}
+        </div>
       </div>
     </section>
   );

@@ -21,6 +21,7 @@ const GameCard: React.FC<GameCardProps> = ({ game, onPlay }) => {
         alt={game.name}
         width={300}
         height={256}
+        quality={100}
         className="h-64 w-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
         onError={(e) => {
           const target = e.target as HTMLImageElement;

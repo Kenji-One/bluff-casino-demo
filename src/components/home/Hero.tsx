@@ -7,6 +7,8 @@ import { apiClient, Game, RawGamesResponse } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import GameCarouselSection from "@/components/games/GameCarouselSection";
 import Image from "next/image";
+import PromoCarousel from "@/components/home/PromoCarousel";
+
 /* -------------------------------------------------
  *  Constants / helpers
  * ------------------------------------------------- */
@@ -116,28 +118,14 @@ export default function Hero() {
   /* ---------- 4. UI ---------- */
   return (
     <div className="space-y-10">
-      {/* Promo strip */}
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* <img src="/images/heroImg1.svg" alt="Roll the dice" />
-        <img src="/images/heroIMG2.svg" alt="Weekly Race" />
-        <img src="/images/HeroIMG3.svg" alt="Welcome Bonus" /> */}
-        <Image
-          src="/images/heroImg1.svg"
-          alt="Roll the dice"
-          width={600}
-          height={250}
-        />
-        <Image
-          src="/images/HeroIMG2.svg"
-          alt="Weekly Race"
-          width={600}
-          height={250}
-        />
-        <Image
-          src="/images/HeroIMG3.svg"
-          alt="Welcome Bonus"
-          width={600}
-          height={250}
+      {/* Promo strip – responsive carousel (no native scrollbar) */}
+      <section aria-label="Promotions" className="relative">
+        <PromoCarousel
+          items={[
+            { src: "/images/heroImg1.svg", alt: "Roll the dice" },
+            { src: "/images/HeroIMG2.svg", alt: "Weekly Race" },
+            { src: "/images/HeroIMG3.svg", alt: "Welcome Bonus" },
+          ]}
         />
       </section>
 

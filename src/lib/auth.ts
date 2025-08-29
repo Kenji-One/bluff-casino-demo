@@ -2,6 +2,10 @@
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
+// keep the keys consistent everywhere
+export const ACCESS_KEY = "accessToken";
+export const REFRESH_KEY = "refreshToken";
+
 interface RegisterData {
   username: string;
   email: string;
@@ -9,73 +13,119 @@ interface RegisterData {
   agreedToTerms: boolean;
   referralCode?: string;
 }
-
 interface LoginData {
   usernameOrEmail: string;
   password: string;
+  twoFactorCode?: string; // ← added
 }
 
 export async function register(data: RegisterData) {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(data),
   });
-
   const json = await res.json();
-
-  if (!res.ok) {
-    throw new Error(json.message || "Registration failed");
-  }
-
+  if (!res.ok) throw new Error(json.message || "Registration failed");
   return json;
 }
 
 export async function login(data: LoginData) {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
+    headers: { "Content-Type": "application/json" },
+    credentials: "include", // ← ensure temp cookie/2FA challenge cookie is sent
+    body: JSON.stringify(data), // contains twoFactorCode when present
   });
-
   const json = await res.json();
 
-  if (!res.ok) {
-    throw new Error(json.message || "Login failed");
+  if (json?.requiresTwoFactor || json?.twoFactorRequired) {
+    const err: any = new Error(json.message || "2FA code required");
+    err.response = { data: json };
+    throw err;
   }
 
+  if (!res.ok) throw new Error(json.message || "Login failed");
+
+  const { accessToken, refreshToken } = json.data || {};
+  if (accessToken) localStorage.setItem(ACCESS_KEY, accessToken);
+  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
+  return json;
+}
+
+// Kept name for compatibility; during "login 2FA (email)" older flows may call this
+export async function verifyTwoFactorLogin(userId: string, code: string) {
+  // Verify email 2FA (primary path)
+  let res = await fetch(`${API_URL}/user-settings/security/2fa/email/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    // try authenticator style as a fallback (if backend uses it)
+    res = await fetch(`${API_URL}/user-settings/security/2fa/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, userId }),
+      credentials: "include",
+    });
+  }
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.message || "2FA verification failed");
+
+  const { accessToken, refreshToken } = json.data || {};
+  if (accessToken) localStorage.setItem(ACCESS_KEY, accessToken);
+  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
   return json;
 }
 
 export async function getProfile(token: string) {
-  console.log("Fetching user profile with token:", token);
   const res = await fetch(`${API_URL}/users/profile`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: "include",
   });
-
   const json = await res.json();
-
-  if (!res.ok) {
-    throw new Error(json.message || "Failed to fetch profile");
-  }
-
+  if (!res.ok) throw new Error(json.message || "Failed to fetch profile");
   return json;
 }
 
 export function logout() {
-  // Clear tokens from localStorage (we'll store it in next steps)
-  localStorage.removeItem("token");
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem("user");
 }
 
-// 👉 add at the bottom of auth.ts
 export function getAccessToken() {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
+  return localStorage.getItem(ACCESS_KEY);
+}
+export function getRefreshToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_KEY);
+}
+
+export async function refreshAccessToken() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) throw new Error("No refresh token");
+
+  const res = await fetch(`${API_URL}/auth/refresh-token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.message || "Failed to refresh token");
+
+  const { accessToken, refreshToken: newRefresh } = json.data || {};
+  if (accessToken) localStorage.setItem(ACCESS_KEY, accessToken);
+  if (newRefresh) localStorage.setItem(REFRESH_KEY, newRefresh);
+
+  return accessToken as string;
 }
