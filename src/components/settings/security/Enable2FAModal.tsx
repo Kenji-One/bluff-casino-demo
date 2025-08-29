@@ -9,6 +9,7 @@ import {
   TransitionChild,
 } from "@headlessui/react";
 import { Fragment, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import QRCodeStyling from "qr-code-styling";
 import InputField from "../../form/InputField";
 import Button from "../../form/Button";
@@ -27,6 +28,20 @@ interface Generate2FAResponse {
     /** Legacy/alt shape: an otpauth:// URL to render as a QR */
     qrCodeUrl?: string;
   };
+}
+
+/* ── tiny helpers to avoid `any` in error handling ───────────────────────── */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+function getApiMessage(err: unknown): string | undefined {
+  if (!isRecord(err)) return undefined;
+  const resp = err["response"];
+  if (!isRecord(resp)) return undefined;
+  const data = resp["data"];
+  if (!isRecord(data)) return undefined;
+  const msg = data["message"];
+  return typeof msg === "string" ? msg : undefined;
 }
 
 export default function Enable2FAModal({ open, onClose, enabled }: Props) {
@@ -63,7 +78,7 @@ export default function Enable2FAModal({ open, onClose, enabled }: Props) {
         // Prefer the ready-made PNG if present; otherwise use otpauth URL
         if (data.qrCode) setQrImage(data.qrCode);
         if (data.qrCodeUrl) setOtpAuthUrl(data.qrCodeUrl);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error(e);
         toast.error("Failed to load 2FA setup.");
       }
@@ -113,9 +128,9 @@ export default function Enable2FAModal({ open, onClose, enabled }: Props) {
         toast.success("2FA enabled");
       }
       onClose();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      toast.error(e?.response?.data?.message ?? "Invalid code");
+      toast.error(getApiMessage(e) ?? "Invalid code");
     } finally {
       setLoading(false);
     }
@@ -171,16 +186,20 @@ export default function Enable2FAModal({ open, onClose, enabled }: Props) {
                         </span>
                       </div>
                     ) : qrImage ? (
-                      // New API: render the data-URI PNG directly
-                      <img
+                      // New API: render the data-URI PNG directly (use Next Image)
+                      <Image
                         src={qrImage}
                         alt="2FA QR code"
+                        width={192}
+                        height={192}
                         className="h-48 w-48"
                         draggable={false}
+                        unoptimized
+                        priority
                       />
                     ) : (
                       // Legacy API: render via qr-code-styling from otpauth URL
-                      <div ref={qrRef} />
+                      <div ref={qrRef} className="h-48 w-48" />
                     )}
                   </div>
 

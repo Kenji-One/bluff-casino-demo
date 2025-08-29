@@ -1,3 +1,4 @@
+// ./src/components/settings/verification/EmailVerifyModal.tsx
 "use client";
 
 import {
@@ -14,6 +15,32 @@ import Button from "../../form/Button";
 import { apiClient } from "@/services/api";
 import userSettingsApi from "@/services/userSettings";
 import { parseApiError } from "@/utils/parseApiError";
+
+/* ── tiny helpers to avoid `any` and safely read backend errors ─────────── */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+function pickBackendMessage(err: unknown): string | undefined {
+  if (!isRecord(err)) return undefined;
+  const resp = err["response"];
+  if (!isRecord(resp)) return undefined;
+  const data = resp["data"];
+  if (!isRecord(data)) return undefined;
+  const message = data["message"];
+  const hint = data["hint"];
+  if (typeof message === "string") return message;
+  if (typeof hint === "string") return hint;
+  return undefined;
+}
+function toErrorMessage(err: unknown, fallback: string): string {
+  return (
+    pickBackendMessage(err) ||
+    parseApiError(err).message ||
+    undefined ||
+    (err instanceof Error ? err.message : undefined) ||
+    fallback
+  );
+}
 
 export default function EmailVerifyModal({
   open,
@@ -59,37 +86,30 @@ export default function EmailVerifyModal({
         }
         try {
           await apiClient.verifyEmailCode(clean);
-        } catch (e: any) {
-          // Prefer backend message
-          const msg =
-            e?.response?.data?.message ||
-            e?.response?.data?.hint ||
-            parseApiError(e).message ||
-            "Verification failed.";
-          throw new Error(msg);
+        } catch (e: unknown) {
+          throw new Error(toErrorMessage(e, "Verification failed."));
         }
       } else {
         // Legacy fallback – if backend rejects as deprecated, show helpful hint
         try {
           await apiClient.verifyEmail(token.trim());
-        } catch (e: any) {
-          const msg =
-            e?.response?.data?.message ||
-            e?.response?.data?.hint ||
-            parseApiError(e).message ||
-            "Token verification is deprecated. Please enter the 6-digit code.";
-          throw new Error(msg);
+        } catch (e: unknown) {
+          throw new Error(
+            toErrorMessage(
+              e,
+              "Token verification is deprecated. Please enter the 6-digit code."
+            )
+          );
         }
       }
     },
     onSuccess: () => onVerified?.(),
-    onError: (e: any) => {
-      const msg =
-        e?.message ||
-        e?.response?.data?.message ||
-        e?.response?.data?.hint ||
-        "Verification failed.";
-      setErr(msg);
+    onError: (e: unknown) => {
+      setErr(
+        pickBackendMessage(e) ||
+          parseApiError(e).message ||
+          (e instanceof Error ? e.message : "Verification failed.")
+      );
     },
   });
 
@@ -232,12 +252,8 @@ export default function EmailVerifyModal({
                       try {
                         await userSettingsApi.startEmailVerification();
                         setErr("We’ve sent a new code to your email.");
-                      } catch (e: any) {
-                        setErr(
-                          e?.response?.data?.message ||
-                            parseApiError(e).message ||
-                            "Could not resend code."
-                        );
+                      } catch (e: unknown) {
+                        setErr(toErrorMessage(e, "Could not resend code."));
                       }
                     }}
                   >

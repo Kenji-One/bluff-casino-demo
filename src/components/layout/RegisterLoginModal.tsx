@@ -104,21 +104,22 @@ export default function RegisterLoginModal({
   const resetPwdRef = useRef<HTMLInputElement | null>(null);
   const resetConfirmRef = useRef<HTMLInputElement | null>(null);
 
-  /** Attach native listeners so password managers & Chrome strong password always sync */
+  /** Attach native listeners so password managers & Chrome strong password always sync
+   * Re-runs whenever the concrete element instance (ref.current) changes.
+   */
   function useNativeSync(
     ref: React.RefObject<HTMLInputElement | null>,
     setter: (v: string) => void
   ) {
+    const el = ref.current; // capture current element for stable deps
     useEffect(() => {
-      const el = ref.current;
       if (!el) return;
 
       const sync = () => setter(el.value);
+      const blurSync = () => setTimeout(() => setter(el.value), 150);
+
       el.addEventListener("input", sync);
       el.addEventListener("change", sync);
-
-      // Chrome sometimes applies the generated password on blur without firing input/change
-      const blurSync = () => setTimeout(() => setter(el.value), 150);
       el.addEventListener("blur", blurSync);
 
       return () => {
@@ -126,7 +127,7 @@ export default function RegisterLoginModal({
         el.removeEventListener("change", sync);
         el.removeEventListener("blur", blurSync);
       };
-    }, [ref, setter, mode]);
+    }, [el, setter]);
   }
 
   // bind sync for current mode’s fields
@@ -259,6 +260,19 @@ export default function RegisterLoginModal({
       return;
     }
 
+    // helper for 2FA error narrowing
+    const isTwoFAError = (
+      e: unknown
+    ): e is {
+      __twoFARequired: true;
+      userId?: string | null;
+      twoFactorMethod?: string | null;
+    } => {
+      if (typeof e !== "object" || e === null) return false;
+      const rec = e as Record<string, unknown>;
+      return rec.__twoFARequired === true;
+    };
+
     // 2FA VERIFY – Re-hit /auth/login including twoFactorCode
     if (mode === "twofa") {
       try {
@@ -289,11 +303,10 @@ export default function RegisterLoginModal({
       try {
         await login(identifier, loginPwdRef.current?.value || password);
         onClose();
-      } catch (err: any) {
-        // 👇 special case: backend requires 2FA
-        if (err && (err as any).__twoFARequired) {
-          setTwoFAUserId((err as any).userId || null);
-          setTwoFAMethod((err as any).twoFactorMethod || "authenticator");
+      } catch (err: unknown) {
+        if (isTwoFAError(err)) {
+          setTwoFAUserId(err.userId ?? null);
+          setTwoFAMethod(err.twoFactorMethod ?? "authenticator");
           setTwoFACode("");
           setMode("twofa");
           setFormError(null);

@@ -33,24 +33,74 @@ const PAGE_SIZE = 30;
 
 type GameCard = Game & { imageUrl: string };
 
+/* ----------------------------- helpers ----------------------------- */
+
+type GamesAllPayload = {
+  data: Game[];
+  meta?: { pagination?: { hasMore?: boolean } };
+};
+
+type GamesByProductPayload = {
+  games: Game[];
+};
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null;
+
+const hasData = (v: unknown): v is { data: unknown } =>
+  isRecord(v) && "data" in v;
+
+const isGamesAllPayload = (v: unknown): v is GamesAllPayload =>
+  isRecord(v) && Array.isArray((v as Record<string, unknown>).data);
+
+const isGamesByProductPayload = (v: unknown): v is GamesByProductPayload =>
+  isRecord(v) && Array.isArray((v as Record<string, unknown>).games);
+
 /** Normalise API responses from:
  *  - /games/all            -> { data: Game[], meta: { pagination: { hasMore } } }
  *  - /games?productId=XXX  -> { games: Game[] }  (or axios wrapper .data.games)
+ *  - or just Game[]
  */
 function normaliseResponse(res: unknown): { list: Game[]; hasMore: boolean } {
-  const payload: any = (res as any)?.data ?? res;
+  const payload = hasData(res) ? res.data : res;
 
-  let list: Game[] = [];
-  if (Array.isArray(payload?.data)) list = payload.data as Game[];
-  else if (Array.isArray(payload?.games)) list = payload.games as Game[];
-  else if (Array.isArray(payload)) list = payload as Game[];
+  if (isGamesAllPayload(payload)) {
+    const list = payload.data;
+    const hasMore =
+      Boolean(payload.meta?.pagination?.hasMore) || list.length >= PAGE_SIZE;
+    return { list, hasMore };
+  }
 
-  const hasMore =
-    Boolean(payload?.meta?.pagination?.hasMore) ||
-    (Array.isArray(list) && list.length >= PAGE_SIZE);
+  if (isGamesByProductPayload(payload)) {
+    const list = payload.games;
+    const hasMore = list.length >= PAGE_SIZE;
+    return { list, hasMore };
+  }
 
-  return { list, hasMore };
+  if (Array.isArray(payload)) {
+    const list = payload as Game[];
+    const hasMore = list.length >= PAGE_SIZE;
+    return { list, hasMore };
+  }
+
+  return { list: [], hasMore: false };
 }
+
+const toGameCard = (g: Game): GameCard => {
+  const extra = g as unknown as Record<string, unknown>;
+  const urlCandidate =
+    (typeof extra.imageUrl === "string" && extra.imageUrl) ||
+    (typeof extra.img === "string" && extra.img) ||
+    FALLBACK_IMG;
+  return { ...g, imageUrl: urlCandidate };
+};
+
+// Narrow apiClient.get to accept AbortSignal without using `any`
+type APIClient = {
+  get: (url: string, config?: { signal?: AbortSignal }) => Promise<unknown>;
+};
+
+/* ------------------------------------------------------------------ */
 
 export default function SearchModal({ open, onClose }: Props) {
   const [provider, setProvider] = useState<Provider>("ALL");
@@ -125,15 +175,13 @@ export default function SearchModal({ open, onClose }: Props) {
     (async () => {
       try {
         setLoading(true);
-        const res = await apiClient.get(buildUrl(provider, offset), {
+        const get = (apiClient as APIClient).get;
+        const res = await get(buildUrl(provider, offset), {
           signal: ctrl.signal,
-        } as any);
-        const { list, hasMore: apiHasMore } = normaliseResponse(res);
+        });
 
-        const page: GameCard[] = (list || []).map((g: any) => ({
-          ...g,
-          imageUrl: g?.imageUrl ?? g?.img ?? FALLBACK_IMG,
-        }));
+        const { list, hasMore: apiHasMore } = normaliseResponse(res);
+        const page: GameCard[] = (list || []).map(toGameCard);
 
         if (ctrl.signal.aborted) return;
         setAllGames((prev) => (offset === 0 ? page : prev.concat(page)));
@@ -150,7 +198,8 @@ export default function SearchModal({ open, onClose }: Props) {
       ctrl.abort();
       setLoading(false);
     };
-  }, [open, provider, offset, hasMore]);
+    // ✅ include `loading` because it's used in the early guard
+  }, [open, provider, offset, hasMore, loading]);
 
   // Infinite scroll
   useEffect(() => {
@@ -218,13 +267,13 @@ export default function SearchModal({ open, onClose }: Props) {
               aria-label="Scroll providers left"
               className="
               md:hidden
-        group absolute -left-5 top-[45%] -translate-y-1/2 z-20
-        w-10 h-10 rounded-full
-        bg-gradient-to-br from-[var(--color-brand)] via-[var(--color-blue)] to-[var(--color-brand)]
-        ring-1 ring-white/10 shadow-[0_6px_18px_rgba(66,100,255,0.45)]
-        flex items-center justify-center
-        hover:scale-[1.03] transition
-      "
+              group absolute -left-5 top-[45%] -translate-y-1/2 z-20
+              w-10 h-10 rounded-full
+              bg-gradient-to-br from-[var(--color-brand)] via-[var(--color-blue)] to-[var(--color-brand)]
+              ring-1 ring-white/10 shadow-[0_6px_18px_rgba(66,100,255,0.45)]
+              flex items-center justify-center
+              hover:scale-[1.03] transition
+            "
             >
               <svg
                 width="22"
@@ -251,13 +300,13 @@ export default function SearchModal({ open, onClose }: Props) {
               aria-label="Scroll providers right"
               className="
               md:hidden
-        group absolute -right-5 top-[45%] -translate-y-1/2 z-20
-        w-10 h-10 rounded-full
-        bg-gradient-to-br from-[var(--color-brand)] via-[var(--color-blue)] to-[var(--color-brand)]
-        ring-1 ring-white/10 shadow-[0_6px_18px_rgba(66,100,255,0.45)]
-        flex items-center justify-center
-        hover:scale-[1.03] transition
-      "
+              group absolute -right-5 top-[45%] -translate-y-1/2 z-20
+              w-10 h-10 rounded-full
+              bg-gradient-to-br from-[var(--color-brand)] via-[var(--color-blue)] to-[var(--color-brand)]
+              ring-1 ring-white/10 shadow-[0_6px_18px_rgba(66,100,255,0.45)]
+              flex items-center justify-center
+              hover:scale-[1.03] transition
+            "
             >
               <svg
                 width="22"
@@ -280,10 +329,10 @@ export default function SearchModal({ open, onClose }: Props) {
           <div
             ref={chipsRef}
             className="
-      scroll-chips
-      flex gap-2 p-4 overflow-x-auto overflow-y-hidden text-sm
-      [-webkit-overflow-scrolling:touch]
-    "
+              scroll-chips
+              flex gap-2 p-4 overflow-x-auto overflow-y-hidden text-sm
+              [-webkit-overflow-scrolling:touch]
+            "
           >
             {PROVIDERS.map((p) => (
               <button
@@ -324,7 +373,7 @@ export default function SearchModal({ open, onClose }: Props) {
   );
 }
 
-/* ---------- Tiles & Skeletons ---------- */
+/* ----------------------- Tiles & Skeletons ----------------------- */
 
 function GameTile({ game }: { game: GameCard }) {
   const [loaded, setLoaded] = useState(false);

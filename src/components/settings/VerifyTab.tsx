@@ -1,3 +1,4 @@
+// ./src/components/settings/VerifyTab.tsx
 "use client";
 
 import type React from "react";
@@ -33,17 +34,34 @@ type VerificationStatusData = {
     occupation?: string;
   };
 };
+
 type VerificationStatusResp = {
   success?: boolean;
   data?: VerificationStatusData | null;
 };
 
+/** Shape of a requirement field item (loosely typed but not `any`) */
+type RequirementField = {
+  name?: string;
+  label?: string;
+  type?: string;
+  required?: boolean;
+  // allow backend to add extra keys without turning this into `any`
+  [key: string]: unknown;
+};
+
 /** NEW – matches /user-settings/verification/requirements (sections object) */
+type RequirementsSection = {
+  required?: boolean;
+  description?: string;
+  fields?: RequirementField[];
+};
+
 type RequirementsSections = {
-  email?: { required?: boolean; description?: string; fields?: any[] };
-  basic_info?: { required?: boolean; description?: string; fields?: any[] };
-  identity?: { required?: boolean; description?: string; fields?: any[] };
-  address?: { required?: boolean; description?: string; fields?: any[] };
+  email?: RequirementsSection;
+  basic_info?: RequirementsSection;
+  identity?: RequirementsSection;
+  address?: RequirementsSection;
 };
 
 type RequirementItem = { level: string; items: string[] };
@@ -60,6 +78,23 @@ type HistoryResp = { success?: boolean; data?: HistoryItem[] | null };
 
 /** Chip states for the UI */
 type ChipState = "Completed" | "Requested" | "Incomplete";
+
+/* ------------------------------ type guards ------------------------------ */
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function extractEmailVerified(val: unknown): boolean {
+  if (!isRecord(val)) return false;
+  const ev = val["emailVerified"];
+  const ver = val["verified"];
+  return (
+    (typeof ev === "boolean" ? ev : undefined) ??
+    (typeof ver === "boolean" ? ver : undefined) ??
+    false
+  );
+}
 
 export default function VerifyTab() {
   const qc = useQueryClient();
@@ -93,9 +128,10 @@ export default function VerifyTab() {
   const emailQ = useQuery<boolean>({
     queryKey: ["verify", "email"],
     queryFn: async () => {
-      const res: any = await userSettingsApi.getEmailVerificationStatus();
-      const d = res?.data ?? res;
-      return Boolean(d?.emailVerified ?? d?.verified ?? false);
+      const res = await userSettingsApi.getEmailVerificationStatus();
+      const payload =
+        isRecord(res) && "data" in res ? (res as { data?: unknown }).data : res;
+      return extractEmailVerified(payload);
     },
   });
 
@@ -114,7 +150,7 @@ export default function VerifyTab() {
   });
 
   const rawReqs = (requirementsQ.data?.data ??
-    null) as RequirementsSections | null;
+    null) as unknown as RequirementsSections | null;
 
   /** History */
   const historyQ = useQuery<HistoryResp>({
@@ -187,7 +223,7 @@ export default function VerifyTab() {
       toast.success("Verification email sent.");
       setCooldownUntil(Date.now() + 60_000); // 60s
     },
-    onError: (err) => {
+    onError: (err: unknown) => {
       const { message } = parseApiError(err);
       toast.error(message || "Failed to send verification email");
       setCooldownUntil(Date.now() + 15_000); // 15s fallback
@@ -210,13 +246,18 @@ export default function VerifyTab() {
     const r = rawReqs || {};
     const build = (
       label: string,
-      sec?: { description?: string; fields?: any[] }
+      sec?: { description?: string; fields?: RequirementField[] }
     ): RequirementItem | null => {
       if (!sec) return null;
       const items: string[] = [];
       if (sec.description) items.push(sec.description);
-      if (Array.isArray(sec.fields))
-        items.push(...sec.fields.map((f) => f?.name).filter(Boolean));
+      if (Array.isArray(sec.fields)) {
+        items.push(
+          ...sec.fields
+            .map((f: RequirementField) => f?.name)
+            .filter((s: string | undefined): s is string => Boolean(s))
+        );
+      }
       return { level: label, items };
     };
     return [
@@ -246,20 +287,31 @@ export default function VerifyTab() {
       : emailVerified && basicEff === "verified"
       ? "Requested"
       : "Incomplete";
+
+  // We keep address* for the future L4 UI; mark as intentionally used to avoid unused-var lint.
   const addressChip: ChipState =
     addressEff === "verified"
       ? "Completed"
       : emailVerified && basicEff === "verified" && identityEff === "verified"
       ? "Requested"
       : "Incomplete";
+  const addressBtnDisabled =
+    !(emailVerified && basicEff === "verified" && identityEff === "verified") ||
+    addressEff === "pending";
+  const addressLabel =
+    addressEff === "pending"
+      ? "Submitted — Pending"
+      : addressEff === "verified"
+      ? "View"
+      : "Verify Now";
+  void addressChip;
+  void addressBtnDisabled;
+  void addressLabel;
 
   // Buttons: disabled
   const basicBtnDisabled = !emailVerified || basicEff === "pending";
   const identityBtnDisabled =
     !(emailVerified && basicEff === "verified") || identityEff === "pending";
-  const addressBtnDisabled =
-    !(emailVerified && basicEff === "verified" && identityEff === "verified") ||
-    addressEff === "pending";
 
   // Buttons: labels
   const basicLabel =
@@ -273,13 +325,6 @@ export default function VerifyTab() {
     identityEff === "pending"
       ? "Submitted — Pending"
       : identityEff === "verified"
-      ? "View"
-      : "Verify Now";
-
-  const addressLabel =
-    addressEff === "pending"
-      ? "Submitted — Pending"
-      : addressEff === "verified"
       ? "View"
       : "Verify Now";
 
@@ -390,8 +435,8 @@ export default function VerifyTab() {
         />
       </Card>
 
-      {/* L4 Proof of Address */}
-      {/* <Card className="flex items-center justify-between gap-4 flex-wrap py-[20px]">
+      {/* L4 Proof of Address (kept for later)
+      <Card className="flex items-center justify-between gap-4 flex-wrap py-[20px]">
         <div className="flex items-center gap-3">
           <StatusIcon
             ok={addressEff === "verified"}
@@ -410,11 +455,11 @@ export default function VerifyTab() {
         <Button
           label={addressLabel}
           padding="px-4 py-3"
-          onClick={() => {
-          }}
+          onClick={() => {}}
           disabled={addressBtnDisabled}
         />
-      </Card> */}
+      </Card>
+      */}
 
       {/* Requirements */}
       {reqs.length > 0 ? (

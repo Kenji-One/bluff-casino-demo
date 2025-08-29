@@ -1,3 +1,4 @@
+// src/components/settings/AvatarModal.tsx
 "use client";
 
 import {
@@ -21,6 +22,51 @@ type Props = {
 };
 
 const FALLBACK = `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Aidan`;
+
+/* ───────────────────────── helper type guards ───────────────────────── */
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null;
+
+const pickNestedString = (obj: unknown, path: string[]): string | undefined => {
+  let cur: unknown = obj;
+  for (const key of path) {
+    if (!isRecord(cur)) return undefined;
+    cur = cur[key];
+  }
+  return typeof cur === "string" ? cur : undefined;
+};
+
+const extractErrorMessage = (err: unknown, fallback: string): string => {
+  // axios-like: err.response.data.message
+  const nested =
+    pickNestedString(err, ["response", "data", "message"]) ??
+    (isRecord(err) && typeof err.message === "string"
+      ? err.message
+      : undefined);
+  return nested ?? fallback;
+};
+
+const extractGeneratedAvatarUrl = (res: unknown): string | undefined => {
+  // handle { data: { profilePicture } } OR { profilePicture }
+  return (
+    pickNestedString(res, ["data", "profilePicture"]) ??
+    pickNestedString(res, ["profilePicture"])
+  );
+};
+
+const extractUploadedAvatarUrl = (res: unknown): string | undefined => {
+  // handle { data: { url } } OR { data: { profilePicture } }
+  return (
+    pickNestedString(res, ["data", "url"]) ??
+    pickNestedString(res, [
+      "data,profilePicture".split(",")[0],
+      "profilePicture",
+    ]) // keeps type-safe access
+  );
+};
+
+/* ───────────────────────────────────────────────────────────────────── */
 
 export default function AvatarModal({
   open,
@@ -71,7 +117,7 @@ export default function AvatarModal({
       setLoading(true);
       try {
         const res = await userSettingsApi.generateAvatar();
-        const newUrl: string | undefined = (res as any)?.data?.profilePicture;
+        const newUrl = extractGeneratedAvatarUrl(res);
         if (newUrl) {
           updateUser({ profilePicture: newUrl }); // optimistic update
           setPreview(cacheBust(newUrl));
@@ -79,8 +125,8 @@ export default function AvatarModal({
         toast.success("Random avatar generated");
         await onChanged?.(); // optional background refresh
         onClose();
-      } catch (e: any) {
-        toast.error(e?.response?.data?.message || "Failed to generate avatar");
+      } catch (e: unknown) {
+        toast.error(extractErrorMessage(e, "Failed to generate avatar"));
       } finally {
         setLoading(false);
       }
@@ -96,8 +142,8 @@ export default function AvatarModal({
         toast.success("Avatar removed");
         await onChanged?.();
         onClose();
-      } catch (e: any) {
-        toast.error(e?.response?.data?.message || "Failed to remove avatar");
+      } catch (e: unknown) {
+        toast.error(extractErrorMessage(e, "Failed to remove avatar"));
       } finally {
         setLoading(false);
       }
@@ -110,8 +156,8 @@ export default function AvatarModal({
       setLoading(true);
       try {
         const res = await userSettingsApi.uploadProfilePicture(file);
-        const newUrl: string | undefined =
-          (res as any)?.data?.url || (res as any)?.data?.profilePicture;
+        const newUrl =
+          extractUploadedAvatarUrl(res) ?? extractGeneratedAvatarUrl(res);
         if (newUrl) {
           updateUser({ profilePicture: newUrl }); // optimistic
           setPreview(cacheBust(newUrl));
@@ -119,8 +165,8 @@ export default function AvatarModal({
         toast.success("Profile picture updated");
         await onChanged?.();
         onClose();
-      } catch (e: any) {
-        toast.error(e?.response?.data?.message || "Upload failed");
+      } catch (e: unknown) {
+        toast.error(extractErrorMessage(e, "Upload failed"));
       } finally {
         setLoading(false);
       }
@@ -221,7 +267,7 @@ export default function AvatarModal({
                         </span>
                       ) : (
                         <span className="text-xs text-white/40">
-                          or drag & drop here
+                          or drag &amp; drop here
                         </span>
                       )}
                     </div>

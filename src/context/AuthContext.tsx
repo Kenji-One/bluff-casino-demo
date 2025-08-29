@@ -34,6 +34,11 @@ interface AuthContextShape {
 
 const AuthContext = createContext<AuthContextShape>({} as AuthContextShape);
 
+/* ── small helpers ──────────────────────────────────────────────────────── */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
 function readStoredUser(): User | null {
   try {
     const s =
@@ -49,23 +54,33 @@ function writeStoredUser(u: User | null) {
   else localStorage.setItem("user", JSON.stringify(u));
 }
 
-function normalizeUser(incoming: any, prev?: User | null): User {
+type TwoFAError = Error & {
+  __twoFARequired?: boolean;
+  userId?: string | number | null;
+  twoFactorMethod?: string;
+};
+
+function normalizeUser(incoming: unknown, prev?: User | null): User {
+  const src = isRecord(incoming) ? incoming : {};
+
   const joinDate =
-    incoming?.joinDate ??
-    incoming?.joinedAt ??
-    incoming?.createdAt ??
-    incoming?.created_at ??
+    (src["joinDate"] as User["joinDate"] | undefined) ??
+    (src["joinedAt"] as unknown as User["joinDate"] | undefined) ??
+    (src["createdAt"] as unknown as User["joinDate"] | undefined) ??
+    (src["created_at"] as unknown as User["joinDate"] | undefined) ??
     prev?.joinDate ??
     null;
 
+  const profilePicture =
+    "profilePicture" in src
+      ? (src["profilePicture"] as User["profilePicture"])
+      : prev?.profilePicture;
+
   const normalized: User = {
     ...(prev ?? ({} as User)),
-    ...(incoming ?? {}),
+    ...(isRecord(incoming) ? (incoming as Partial<User>) : {}),
     joinDate,
-    profilePicture:
-      incoming?.profilePicture !== undefined
-        ? incoming.profilePicture
-        : prev?.profilePicture,
+    profilePicture,
   };
 
   return normalized;
@@ -132,28 +147,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(u);
       writeStoredUser(u);
       return u;
-    } catch (e: any) {
-      const payload = e?.response?.data || {};
+    } catch (e: unknown) {
+      const payload = axios.isAxiosError(e)
+        ? (e.response?.data as Record<string, unknown> | undefined) ?? {}
+        : {};
+
       const needs2FA =
-        e?.__twoFARequired ||
-        payload?.requiresTwoFactor ||
-        payload?.twoFactorRequired;
+        (isRecord(e) &&
+          typeof e["__twoFARequired"] === "boolean" &&
+          e["__twoFARequired"]) ||
+        Boolean(payload["requiresTwoFactor"]) ||
+        Boolean(payload["twoFactorRequired"]);
 
       if (needs2FA) {
-        const special: any = new Error(
-          payload?.message || e?.message || "2FA code required"
-        );
-        special.__twoFARequired = true;
-        special.userId = e?.userId ?? payload?.userId ?? null;
-        special.twoFactorMethod =
-          e?.twoFactorMethod ?? payload?.twoFactorMethod ?? "authenticator";
+        const msg =
+          (isRecord(payload) &&
+            typeof payload["message"] === "string" &&
+            payload["message"]) ||
+          (e instanceof Error ? e.message : "2FA code required");
+
+        const special: TwoFAError = Object.assign(new Error(msg), {
+          __twoFARequired: true,
+          userId:
+            (isRecord(e) &&
+              (e["userId"] as string | number | null | undefined)) ??
+            (isRecord(payload)
+              ? (payload["userId"] as string | number | null | undefined)
+              : null) ??
+            null,
+          twoFactorMethod:
+            (isRecord(e) && (e["twoFactorMethod"] as string | undefined)) ??
+            (isRecord(payload)
+              ? (payload["twoFactorMethod"] as string | undefined)
+              : undefined) ??
+            "authenticator",
+        });
         // don't set global error; let UI switch to 2FA
         throw special;
       }
 
       const msg = axios.isAxiosError(e)
-        ? e.response?.data?.message || e.message
-        : e?.message || "Login failed";
+        ? (e.response?.data as { message?: string } | undefined)?.message ||
+          e.message
+        : e instanceof Error
+        ? e.message
+        : "Login failed";
       setError(msg);
       throw e;
     } finally {

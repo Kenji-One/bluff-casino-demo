@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
+import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import Button from "@/components/form/Button";
 import BalanceSelect, { Token } from "@/components/wallet/BalanceSelect";
@@ -288,23 +288,29 @@ export default function TopBar({
     <header className="flex min-w-0 items-center justify-between gap-4 px-4 pb-2 pt-0">
       {/* logo */}
       <Link href="/" className="shrink-0">
-        {/* Mobile logo (below lg) */}
-        <img
+        {/* Mobile logo */}
+        <Image
           src="/logo-mobile.svg"
           alt="Visabet"
+          width={100}
+          height={24}
           className="block h-6 w-auto lg:hidden"
+          priority
         />
-        {/* Desktop logo (lg and up) */}
-        <img
+        {/* Desktop logo */}
+        <Image
           src="/logo.svg"
           alt="Visabet"
+          width={140}
+          height={32}
           className="hidden lg:block h-5 sm:h-[22px] w-auto"
+          priority
         />
       </Link>
 
       {user ? (
         <>
-          {/* wallet & deposit block */}
+          {/* wallet & deposit */}
           <div
             ref={walletBlockRef}
             className="flex min-w-0 items-stretch gap-1 sm:gap-2"
@@ -319,7 +325,6 @@ export default function TopBar({
               anchorRef={walletBlockRef}
             />
 
-            {/* deposit button */}
             <button
               onClick={() => router.push("/deposit")}
               className="flex shrink-0 items-center gap-[6px] bg-[var(--color-blue)] text-white text-xs sm:text-sm font-semibold rounded-full px-2 sm:px-3 py-[7px] sm:py-[10px] whitespace-nowrap"
@@ -333,26 +338,26 @@ export default function TopBar({
           <div
             className="relative shrink-0"
             ref={menuRef}
-            // Hover open/close only when device supports hover (desktop)
             onMouseEnter={isHoverable ? openMenu : undefined}
             onMouseLeave={isHoverable ? () => scheduleClose(120) : undefined}
           >
             <button
               className="flex justify-center items-center ml-1 sm:ml-2"
-              onClick={() => {
-                // Toggle on click (desktop + mobile)
-                if (!menuMounted || !menuOpen) openMenu();
-                else hideImmediate();
-              }}
+              onClick={() =>
+                !menuMounted || !menuOpen ? openMenu() : hideImmediate()
+              }
               aria-haspopup="menu"
               aria-expanded={menuOpen}
             >
-              <img
+              <Image
                 src={
                   user.profilePicture ||
                   "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Aidan"
                 }
                 alt="avatar"
+                width={40}
+                height={40}
+                unoptimized
                 className="h-9 w-9 sm:h-10 sm:w-10 rounded-full object-cover"
               />
             </button>
@@ -368,19 +373,21 @@ export default function TopBar({
                     ? "opacity-100 scale-100 translate-y-0"
                     : "opacity-0 scale-95 -translate-y-1",
                 ].join(" ")}
-                // Keep open while hovering, only on hover-capable devices
                 onMouseEnter={isHoverable ? openMenu : undefined}
                 onMouseLeave={
                   isHoverable ? () => scheduleClose(120) : undefined
                 }
               >
                 <div className="bg-[var(--surface-l3)] px-5 py-4 flex items-center gap-3">
-                  <img
+                  <Image
                     src={
                       user.profilePicture ||
                       "https://api.dicebear.com/9.x/bottts-neutral/svg?seed=Aidan"
                     }
                     alt=""
+                    width={40}
+                    height={40}
+                    unoptimized
                     className="h-10 w-10 rounded-full object-cover"
                   />
                   <span className="font-semibold truncate">
@@ -433,13 +440,10 @@ export default function TopBar({
         </>
       ) : (
         <>
-          {/* search (desktop) */}
           <SearchTrigger
             onOpenSearch={onOpenSearch}
             className="max-w-[415px]"
           />
-
-          {/* auth buttons */}
           <div className="flex items-center gap-1 sm:gap-2 w-full max-w-[164px] sm:max-w-[178px] lg:max-w-[248px] justify-end">
             <Button
               variant="login"

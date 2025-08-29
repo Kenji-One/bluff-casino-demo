@@ -17,6 +17,21 @@ export interface PreferencesPayload {
   updatedAt: string;
 }
 
+/** Helper for responses that may be wrapped like `{ data: T }` */
+type MaybeWrapped<T> = T | { data: T };
+function unwrapData<T>(val: MaybeWrapped<T>): T {
+  if (typeof val === "object" && val !== null && "data" in (val as object)) {
+    return (val as { data: T }).data;
+  }
+  return val as T;
+}
+
+/** Upload KYC endpoint can return one of these shapes */
+type UploadResult = {
+  url?: string;
+  cdnUrl?: string;
+};
+
 /* ────────────────────────────────
    API helpers
    ──────────────────────────────── */
@@ -133,17 +148,29 @@ const userSettingsApi = {
   // 💰 Transactions
   // ────────────────────────────────
   getUserTransactions: (queryParams: Record<string, string | number> = {}) => {
-    const query = new URLSearchParams(queryParams as any).toString();
-    return apiClient.get(`/user-settings/transactions?${query}`);
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(queryParams)) {
+      qs.set(key, String(value));
+    }
+    return apiClient.get(`/user-settings/transactions?${qs.toString()}`);
   },
+
   getTransactionSummary: (period: string = "30d") =>
     apiClient.get(`/user-settings/transactions/summary?period=${period}`),
+
   exportTransactions: (queryParams: Record<string, string | number>) => {
-    const query = new URLSearchParams(queryParams as any).toString();
-    return apiClient.download(`/user-settings/transactions/export?${query}`, {
-      responseType: "blob",
-    });
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(queryParams)) {
+      qs.set(key, String(value));
+    }
+    return apiClient.download(
+      `/user-settings/transactions/export?${qs.toString()}`,
+      {
+        responseType: "blob",
+      }
+    );
   },
+
   getTransactionDashboard: () =>
     apiClient.get("/user-settings/transactions/dashboard"),
 
@@ -193,17 +220,15 @@ const userSettingsApi = {
     const fd = new FormData();
     fd.append("file", file);
 
-    // NOTE: `apiClient.post` here only accepts 1–2 args, so we DON'T pass a 3rd config arg.
-    // Browsers set the correct multipart boundary automatically when sending FormData.
-    const res: any = await apiClient.post(
+    const res = await apiClient.post<MaybeWrapped<UploadResult>>(
       "/user-settings/verification/upload-document",
       fd
     );
 
-    const d = res?.data ?? res;
-    const url = d?.url ?? d?.data?.url ?? d?.cdnUrl;
+    const d = unwrapData(res);
+    const url = d?.url ?? d?.cdnUrl;
     if (!url) throw new Error("Upload failed");
-    return url as string;
+    return url;
   },
 
   /** Submits identity verification payload (JSON with URLs). */
@@ -216,7 +241,7 @@ const userSettingsApi = {
   }) => apiClient.post("/user-settings/verification/identity", payload),
 
   // (back-compat)
-  submitIdentityVerification: (payload: FormData | Record<string, any>) =>
+  submitIdentityVerification: (payload: FormData | Record<string, unknown>) =>
     apiClient.post("/user-settings/verification/identity", payload),
 
   getVerificationRequirements: () =>

@@ -45,6 +45,9 @@ interface ApiSession {
   createdAt: string; // ISO
 }
 
+/** Narrow device type we actually render as icons */
+type DeviceType = "desktop" | "mobile" | "tablet" | "unknown";
+
 /** View model */
 interface SessionVM {
   id: string;
@@ -54,7 +57,7 @@ interface SessionVM {
   lastUsedLabel: string;
   isCurrent: boolean;
   isActive: boolean;
-  deviceType: NonNullable<ApiDeviceInfo["device"]["type"]>;
+  deviceType: DeviceType;
 }
 
 /* ===================== Helpers ===================== */
@@ -75,57 +78,75 @@ function isAxiosLike<T>(v: unknown): v is { data: T } {
 
 /** First unwrap Axios if needed; otherwise return the value as-is */
 function unwrapAxios<T>(res: unknown): T {
-  if (isAxiosLike<T>(res)) return res.data;
+  if (isAxiosLike<T>(res)) return (res as { data: T }).data;
   return res as T;
 }
 
-function normalizeSession(raw: any): ApiSession | null {
+const asRecord = (v: unknown): Record<string, unknown> =>
+  isRecord(v) ? v : {};
+
+/** Safe normalizer from unknown backend shapes */
+function normalizeSession(raw: unknown): ApiSession | null {
   try {
-    const id = String(raw?.id ?? "");
+    const r = asRecord(raw);
+    const idVal = r.id;
+    const id = typeof idVal === "string" ? idVal : String(idVal ?? "");
     if (!id) return null;
 
-    const device = raw?.deviceInfo ?? {};
-    const dDevice = device.device ?? {};
-    const dBrowser = device.browser ?? {};
-    const dOS = device.os ?? {};
-    const dCPU = device.cpu ?? {};
+    const deviceInfo = asRecord(r.deviceInfo);
+    const dev = asRecord(deviceInfo.device);
+    const br = asRecord(deviceInfo.browser);
+    const os = asRecord(deviceInfo.os);
+    const cpu = asRecord(deviceInfo.cpu);
 
-    const ip = String(raw?.ipAddress ?? raw?.ip ?? "");
-    const created = String(raw?.createdAt ?? new Date().toISOString());
-    const lastUsed = String(
-      raw?.lastUsedAt ?? raw?.lastUsed ?? raw?.updatedAt ?? created
-    );
+    const ipRaw =
+      typeof r.ipAddress === "string"
+        ? r.ipAddress
+        : typeof r.ip === "string"
+        ? r.ip
+        : "";
+    const createdRaw =
+      typeof r.createdAt === "string" ? r.createdAt : new Date().toISOString();
+    const lastUsedRaw =
+      (typeof r.lastUsedAt === "string" && r.lastUsedAt) ||
+      (typeof r.lastUsed === "string" && r.lastUsed) ||
+      (typeof r.updatedAt === "string" && r.updatedAt) ||
+      createdRaw;
 
-    const isActive =
-      typeof raw?.isActive === "boolean"
-        ? raw.isActive
-        : String(raw?.status ?? "").toLowerCase() === "active";
+    const activeBool =
+      typeof r.isActive === "boolean"
+        ? r.isActive
+        : typeof r.status === "string" && r.status.toLowerCase() === "active";
 
     const safe: ApiSession = {
       id,
       deviceInfo: {
         browser: {
-          name: dBrowser?.name ?? "",
-          version: String(dBrowser?.version ?? ""),
-          major: String(dBrowser?.major ?? ""),
+          name: typeof br.name === "string" ? br.name : "",
+          version: typeof br.version === "string" ? br.version : "",
+          major: typeof br.major === "string" ? br.major : "",
         },
         device: {
-          type: String(dDevice?.type ?? "unknown").toLowerCase(),
-          vendor: dDevice?.vendor ?? "Unknown",
-          model: dDevice?.model ?? "Unknown",
+          type:
+            typeof dev.type === "string" ? dev.type.toLowerCase() : "unknown",
+          vendor: typeof dev.vendor === "string" ? dev.vendor : "Unknown",
+          model: typeof dev.model === "string" ? dev.model : "Unknown",
         },
         os: {
-          name: dOS?.name ?? "Device",
-          version: String(dOS?.version ?? ""),
+          name: typeof os.name === "string" ? os.name : "Device",
+          version: typeof os.version === "string" ? os.version : "",
         },
-        cpu: { architecture: String(dCPU?.architecture ?? "") },
+        cpu: {
+          architecture:
+            typeof cpu.architecture === "string" ? cpu.architecture : "",
+        },
       },
-      ipAddress: ip,
-      location: typeof raw?.location === "string" ? raw.location : null,
-      userAgent: String(raw?.userAgent ?? ""),
-      isActive: !!isActive,
-      lastUsedAt: lastUsed,
-      createdAt: created,
+      ipAddress: ipRaw,
+      location: typeof r.location === "string" ? r.location : null,
+      userAgent: typeof r.userAgent === "string" ? r.userAgent : "",
+      isActive: !!activeBool,
+      lastUsedAt: lastUsedRaw,
+      createdAt: createdRaw,
     };
 
     return safe;
@@ -162,13 +183,10 @@ function makeDeviceLabel(s: ApiSession): string {
   return browser ? `${os} (${browser})` : os;
 }
 
-function pickDeviceType(
-  s: ApiSession
-): NonNullable<ApiDeviceInfo["device"]["type"]> {
+function pickDeviceType(s: ApiSession): DeviceType {
   const t = String(s.deviceInfo.device?.type ?? "unknown").toLowerCase();
-  return t === "desktop" || t === "mobile" || t === "tablet"
-    ? (t as any)
-    : "unknown";
+  if (t === "desktop" || t === "mobile" || t === "tablet") return t;
+  return "unknown";
 }
 
 /* ===================== Component ===================== */
@@ -200,16 +218,16 @@ export default function SessionsTab() {
 
       // Step 2: accept either an envelope or a bare array
       const listUnknown: unknown[] = isEnvelope<unknown[]>(first)
-        ? first.data
+        ? (first as ApiResponse<unknown[]>).data
         : Array.isArray(first)
-        ? first
+        ? (first as unknown[])
         : (() => {
             throw new Error("Unexpected sessions response");
           })();
 
       const normalized = listUnknown
         .map(normalizeSession)
-        .filter(Boolean) as ApiSession[];
+        .filter((x): x is ApiSession => x !== null);
 
       setSessions(normalized);
       setSelected((prev) =>
@@ -233,14 +251,14 @@ export default function SessionsTab() {
 
       // { success:true, data:null } OR { success:true, data:{ id: string }} OR raw object with id
       let id: string | null = null;
-      if (isEnvelope<any>(first)) {
-        id =
-          first.data && typeof first.data.id === "string"
-            ? first.data.id
-            : null;
-      } else if (isRecord(first) && typeof (first as any).id === "string") {
-        id = String((first as any).id);
+
+      if (isEnvelope<unknown>(first)) {
+        const d = (first as ApiResponse<unknown>).data;
+        if (isRecord(d) && typeof d.id === "string") id = d.id;
+      } else if (isRecord(first) && typeof first.id === "string") {
+        id = first.id;
       }
+
       setCurrentSessionId(id);
     } catch {
       setCurrentSessionId(null);

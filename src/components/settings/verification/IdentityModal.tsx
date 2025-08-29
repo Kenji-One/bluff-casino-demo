@@ -1,3 +1,4 @@
+// ./src/components/settings/verification/IdentityModal.tsx
 "use client";
 
 import {
@@ -28,7 +29,18 @@ type Props = {
 type DocKind = "drivers_license" | "id_card" | "passport" | "residence_permit";
 
 const ALLOWED_MIME = ["image/jpeg", "image/png", "application/pdf"] as const;
+type AllowedMime = (typeof ALLOWED_MIME)[number];
 const MAX_MB = 10;
+
+type IdentityPayload = {
+  documentType: DocKind;
+  documentNumber: string;
+  documentUrl: string;
+  documentBackUrl?: string;
+  country?: string;
+};
+
+type SubmitIdentityResp = { success?: boolean; message?: string };
 
 export default function IdentityModal({
   open,
@@ -78,7 +90,7 @@ export default function IdentityModal({
   const fileInputBack = useRef<HTMLInputElement>(null);
 
   const validateFile = (f: File) => {
-    if (!ALLOWED_MIME.includes(f.type as any)) {
+    if (!ALLOWED_MIME.includes(f.type as AllowedMime)) {
       throw new Error("Only JPG, PNG or PDF files are allowed.");
     }
     const mb = f.size / (1024 * 1024);
@@ -87,7 +99,7 @@ export default function IdentityModal({
     }
   };
 
-  const uploadAndSubmit = useMutation({
+  const uploadAndSubmit = useMutation<SubmitIdentityResp, unknown, void>({
     mutationFn: async () => {
       setErr(null);
 
@@ -110,18 +122,20 @@ export default function IdentityModal({
       }
 
       // 2) Submit identity payload
-      const payload: any = {
+      const payload: IdentityPayload = {
         documentType: mapDocType(docType),
         documentNumber: docNumber.trim(),
         documentUrl: frontUrl,
+        ...(backUrl ? { documentBackUrl: backUrl } : {}),
+        ...(country ? { country } : {}),
       };
-      if (backUrl) payload.documentBackUrl = backUrl;
-      if (country) payload.country = country;
 
-      const resp = await userSettingsApi.submitIdentity(payload);
+      const resp = (await userSettingsApi.submitIdentity(
+        payload
+      )) as SubmitIdentityResp;
       return resp;
     },
-    onSuccess: (resp: any) => {
+    onSuccess: (resp) => {
       const msg =
         resp?.message ||
         "Identity documents submitted! We’ll review them shortly.";

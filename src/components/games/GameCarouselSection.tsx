@@ -1,14 +1,14 @@
 // src/components/games/GameCarouselSection.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import CarouselCard from "./CarouselCard";
 import { Game } from "@/services/api";
 
 interface Props {
   title: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   games: Game[];
   onPlay?: (g: Game) => void;
   viewAllHref?: string;
@@ -18,13 +18,15 @@ const GAP_PX = 14;
 const H_RATIO = 200.535 / 150;
 const CARD_SIZES = [150, 130, 110] as const;
 
-function calcLayout(containerW: number) {
+type Layout = { cardW: number; vpW: number };
+
+function calcLayout(containerW: number): Layout {
   for (const cw of CARD_SIZES) {
     const vis = Math.floor((containerW + GAP_PX) / (cw + GAP_PX));
-    if (vis >= 2) return { cardW: cw, visible: vis, vpW: containerW };
+    if (vis >= 2) return { cardW: cw, vpW: containerW };
   }
   const cw = CARD_SIZES.at(-1)!;
-  return { cardW: cw, visible: 1, vpW: containerW };
+  return { cardW: cw, vpW: containerW };
 }
 
 const TRANSITION_MS = 300;
@@ -39,11 +41,10 @@ export default function GameCarouselSection({
 }: Props) {
   const rowRef = useRef<HTMLDivElement>(null);
 
-  const [{ cardW, visible, vpW }, setLayout] = useState(() => ({
+  const [{ cardW, vpW }, setLayout] = useState<Layout>({
     cardW: 150,
-    visible: 6,
     vpW: 0,
-  }));
+  });
 
   const cardH = Math.round(cardW * H_RATIO);
   const STEP = cardW + GAP_PX;
@@ -65,7 +66,6 @@ export default function GameCarouselSection({
   /* carousel state */
   const [idx, setIdx] = useState(0);
   const [anim, setAnim] = useState(false);
-  const [paused, setPause] = useState(false);
 
   // derive max index from track width and viewport width (allows partial end)
   const trackW = games.length * cardW + Math.max(games.length - 1, 0) * GAP_PX;
@@ -77,7 +77,6 @@ export default function GameCarouselSection({
   // adjust index if layout changes
   useEffect(() => {
     setIdx((i) => (i > maxIdx ? maxIdx : i));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxIdx, cardW, vpW, games.length]);
 
   const shiftLeft = () =>
@@ -105,7 +104,7 @@ export default function GameCarouselSection({
         </h3>
 
         {/* right controls: View all + arrows */}
-        <div className="hidden md:flex items-strech gap-2">
+        <div className="hidden md:flex items-stretch gap-2">
           {viewAllHref && (
             <a
               href={viewAllHref}
@@ -167,12 +166,7 @@ export default function GameCarouselSection({
       {/* row (measured + clipped to container width) */}
       <div ref={rowRef} className="relative w-full min-w-0">
         {/* viewport = full container width */}
-        <div
-          className="relative overflow-hidden"
-          style={{ width: "100%" }}
-          onMouseEnter={() => setPause(true)}
-          onMouseLeave={() => setPause(false)}
-        >
+        <div className="relative overflow-hidden" style={{ width: "100%" }}>
           <div
             onTransitionEnd={onEnd}
             className="flex"
@@ -183,7 +177,7 @@ export default function GameCarouselSection({
             }}
           >
             {games.map((g, i) => {
-              // Safe, deterministic key (fixes TS2881 warning)
+              // Safe, deterministic key
               const key =
                 g.id ??
                 (g.providerId && g.code

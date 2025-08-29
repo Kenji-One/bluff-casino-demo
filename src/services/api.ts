@@ -66,7 +66,7 @@ export interface RawGamesResponse {
   message?: string;
   data?: {
     games?: Game[];
-    [key: string]: any;
+    [key: string]: unknown; // ← no `any`
   };
   games?: Game[];
 }
@@ -98,6 +98,14 @@ const PUBLIC_PATHS = [
 ];
 
 /* ---------- client ---------- */
+type RetryableConfig = AxiosRequestConfig & { _retry?: boolean };
+type TwoFAError = Error & {
+  __twoFARequired?: boolean;
+  userId?: string | number | null;
+  twoFactorMethod?: string;
+  response?: { data?: unknown };
+};
+
 class TwinaceApi {
   private c: AxiosInstance;
   private refreshClient: AxiosInstance;
@@ -131,7 +139,7 @@ class TwinaceApi {
         const t = getAccess();
         if (t) {
           cfg.headers = cfg.headers || {};
-          (cfg.headers as any).Authorization = `Bearer ${t}`;
+          (cfg.headers as Record<string, string>).Authorization = `Bearer ${t}`;
         }
       }
       return cfg;
@@ -139,14 +147,18 @@ class TwinaceApi {
 
     this.c.interceptors.response.use(
       (r) => r,
-      async (err) => {
-        const orig = err.config as AxiosRequestConfig & { _retry?: boolean };
-
-        if (!err.response || err.response.status !== 401) {
+      async (err: unknown) => {
+        if (!axios.isAxiosError(err)) {
           return Promise.reject(err);
         }
 
-        const url = (orig?.url || "").toString();
+        const orig = err.config as RetryableConfig | undefined;
+
+        if (!err.response || err.response.status !== 401 || !orig) {
+          return Promise.reject(err);
+        }
+
+        const url = (orig.url || "").toString();
         // Never try to refresh for public endpoints.
         if (PUBLIC_PATHS.some((p) => url.startsWith(p))) {
           return Promise.reject(err);
@@ -172,7 +184,9 @@ class TwinaceApi {
           });
           if (token) {
             orig.headers = orig.headers || {};
-            (orig.headers as any).Authorization = `Bearer ${token}`;
+            (
+              orig.headers as Record<string, string>
+            ).Authorization = `Bearer ${token}`;
           }
           return this.c(orig);
         }
@@ -194,7 +208,9 @@ class TwinaceApi {
           this.pendingQueue = [];
 
           orig.headers = orig.headers || {};
-          (orig.headers as any).Authorization = `Bearer ${newAccess}`;
+          (
+            orig.headers as Record<string, string>
+          ).Authorization = `Bearer ${newAccess}`;
           return this.c(orig);
         } catch (e) {
           clearTokens();
@@ -216,7 +232,7 @@ class TwinaceApi {
   async patch<T = unknown, B = unknown>(
     url: string,
     body?: B,
-    config?: any
+    config?: AxiosRequestConfig
   ): Promise<T> {
     const { data } = await this.c.patch<T>(url, body, config);
     return data as T;
@@ -229,11 +245,17 @@ class TwinaceApi {
     const { data } = await this.c.put<T>(url, body);
     return data as T;
   }
-  async delete<T = unknown>(url: string, config?: any): Promise<T> {
+  async delete<T = unknown>(
+    url: string,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const { data } = await this.c.delete<T>(url, config);
     return data as T;
   }
-  async download<T = unknown>(url: string, config?: any): Promise<T> {
+  async download<T = unknown>(
+    url: string,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
     const { data } = await this.c.get<T>(url, { ...config });
     return data as T;
   }
@@ -251,11 +273,15 @@ class TwinaceApi {
     const { data } = await this.c.post("/auth/login", payload);
 
     if (data?.requiresTwoFactor || data?.twoFactorRequired) {
-      const err: any = new Error(data?.message || "2FA code required");
-      err.__twoFARequired = true;
-      err.userId = data?.userId ?? data?.data?.userId ?? null;
-      err.twoFactorMethod = data?.twoFactorMethod ?? "authenticator";
-      err.response = { data };
+      const err: TwoFAError = Object.assign(
+        new Error(data?.message || "2FA code required"),
+        {
+          __twoFARequired: true,
+          userId: data?.userId ?? data?.data?.userId ?? null,
+          twoFactorMethod: data?.twoFactorMethod ?? "authenticator",
+          response: { data },
+        }
+      );
       throw err;
     }
 

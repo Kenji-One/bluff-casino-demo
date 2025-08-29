@@ -1,6 +1,7 @@
+// src/components/home/PromoCarousel.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import clsx from "clsx";
 
@@ -33,8 +34,15 @@ export default function PromoCarousel({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Extracted to simple variables + memoized derived value to avoid complex deps
+  const aspectW = aspect[0];
+  const aspectH = aspect[1];
+
   // min width derived from minHeight * aspect (≈356 for 200 @ 16:9)
-  const MIN_CARD_W = Math.ceil(minHeight * (aspect[0] / aspect[1]));
+  const MIN_CARD_W = useMemo(
+    () => Math.ceil(minHeight * (aspectW / aspectH)),
+    [minHeight, aspectW, aspectH]
+  );
 
   const [{ cardW, vpW }, setLayout] = useState(() => ({
     cardW: MIN_CARD_W,
@@ -70,7 +78,7 @@ export default function PromoCarousel({
     const ro = new ResizeObserver(compute);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [gapPx, maxCardWidth, MIN_CARD_W, aspect[0], aspect[1], minHeight]);
+  }, [gapPx, maxCardWidth, MIN_CARD_W]); // ✅ simple deps only
 
   /* ────────────────────── CAROUSEL STATE (CLAMPED PIXELS) ────────────────────── */
   const [offset, setOffset] = useState(0); // pixel offset (not index)
@@ -115,7 +123,8 @@ export default function PromoCarousel({
   const onTouchEnd = () => {
     const THRESH = 40;
     if (Math.abs(deltaX.current) > THRESH) {
-      deltaX.current < 0 ? next() : prev();
+      if (deltaX.current < 0) next();
+      else prev();
     }
   };
 
@@ -148,7 +157,7 @@ export default function PromoCarousel({
             style={{
               width: cardW, // capped by maxCardWidth
               minHeight, // 200px
-              aspectRatio: `${aspect[0]} / ${aspect[1]}`, // 16/9
+              aspectRatio: `${aspectW} / ${aspectH}`, // 16/9
             }}
             aria-label={it.alt}
           >

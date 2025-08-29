@@ -1,3 +1,4 @@
+// ./src/components/settings/verification/BasicInfoModal.tsx
 "use client";
 
 import {
@@ -20,6 +21,20 @@ type Values = {
   dateOfBirth?: string; // "YYYY-MM-DD"
   occupation?: string;
 };
+
+function getErrorMessage(e: unknown): string | undefined {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  if (
+    typeof e === "object" &&
+    e !== null &&
+    "message" in e &&
+    typeof (e as Record<string, unknown>).message === "string"
+  ) {
+    return (e as Record<string, unknown>).message as string;
+  }
+  return undefined;
+}
 
 export default function BasicInfoModal({
   open,
@@ -79,7 +94,7 @@ export default function BasicInfoModal({
         occupation,
       });
     },
-    onError: (e: any) => setErr(e?.message || "Failed to submit"),
+    onError: (e: unknown) => setErr(getErrorMessage(e) || "Failed to submit"),
     onSuccess: () => onSubmitted?.(),
   });
 

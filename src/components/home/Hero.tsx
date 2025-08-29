@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { apiClient, Game, RawGamesResponse } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import GameCarouselSection from "@/components/games/GameCarouselSection";
-import Image from "next/image";
 import PromoCarousel from "@/components/home/PromoCarousel";
 
 /* -------------------------------------------------

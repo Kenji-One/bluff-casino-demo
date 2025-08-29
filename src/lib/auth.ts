@@ -19,6 +19,25 @@ interface LoginData {
   twoFactorCode?: string; // ← added
 }
 
+/* ---- Types for responses + error we throw on 2FA requirement ---- */
+type Tokens = { accessToken?: string; refreshToken?: string };
+
+interface LoginResponse {
+  message?: string;
+  data?: Tokens & Record<string, unknown>;
+  requiresTwoFactor?: boolean;
+  twoFactorRequired?: boolean;
+  userId?: string | number | null;
+  twoFactorMethod?: string;
+}
+
+interface TwoFAError extends Error {
+  response?: { data: LoginResponse };
+  __twoFARequired?: boolean;
+  userId?: string | number | null;
+  twoFactorMethod?: string;
+}
+
 export async function register(data: RegisterData) {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
@@ -26,7 +45,7 @@ export async function register(data: RegisterData) {
     credentials: "include",
     body: JSON.stringify(data),
   });
-  const json = await res.json();
+  const json: { message?: string } = await res.json();
   if (!res.ok) throw new Error(json.message || "Registration failed");
   return json;
 }
@@ -38,17 +57,24 @@ export async function login(data: LoginData) {
     credentials: "include", // ← ensure temp cookie/2FA challenge cookie is sent
     body: JSON.stringify(data), // contains twoFactorCode when present
   });
-  const json = await res.json();
+  const json: LoginResponse = await res.json();
 
   if (json?.requiresTwoFactor || json?.twoFactorRequired) {
-    const err: any = new Error(json.message || "2FA code required");
-    err.response = { data: json };
+    const err: TwoFAError = Object.assign(
+      new Error(json.message || "2FA code required"),
+      {
+        response: { data: json },
+        __twoFARequired: true,
+        userId: json.userId ?? null,
+        twoFactorMethod: json.twoFactorMethod ?? "authenticator",
+      }
+    );
     throw err;
   }
 
   if (!res.ok) throw new Error(json.message || "Login failed");
 
-  const { accessToken, refreshToken } = json.data || {};
+  const { accessToken, refreshToken } = (json.data ?? {}) as Tokens;
   if (accessToken) localStorage.setItem(ACCESS_KEY, accessToken);
   if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
   return json;
@@ -74,7 +100,7 @@ export async function verifyTwoFactorLogin(userId: string, code: string) {
     });
   }
 
-  const json = await res.json();
+  const json: { message?: string; data?: Tokens } = await res.json();
   if (!res.ok) throw new Error(json.message || "2FA verification failed");
 
   const { accessToken, refreshToken } = json.data || {};
@@ -89,7 +115,7 @@ export async function getProfile(token: string) {
     headers: { Authorization: `Bearer ${token}` },
     credentials: "include",
   });
-  const json = await res.json();
+  const json: { message?: string } = await res.json();
   if (!res.ok) throw new Error(json.message || "Failed to fetch profile");
   return json;
 }
@@ -120,7 +146,8 @@ export async function refreshAccessToken() {
     body: JSON.stringify({ refreshToken }),
   });
 
-  const json = await res.json();
+  const json: { message?: string; data?: Tokens & { refreshToken?: string } } =
+    await res.json();
   if (!res.ok) throw new Error(json.message || "Failed to refresh token");
 
   const { accessToken, refreshToken: newRefresh } = json.data || {};

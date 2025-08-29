@@ -1,3 +1,4 @@
+// src/app/settings/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,7 +13,6 @@ import VerifyTab from "@/components/settings/VerifyTab";
 import SecurityTab from "@/components/settings/SecurityTab";
 import PreferencesTab from "@/components/settings/PreferencesTab";
 import SessionsTab from "@/components/settings/SessionsTab";
-import IgnoredUsersTab from "@/components/settings/IgnoredUsersTab";
 import TransactionHistoryTab from "@/components/settings/TransactionHistoryTab";
 
 const TABS = [
@@ -21,7 +21,6 @@ const TABS = [
   { key: "Security", label: "Security" },
   { key: "Preferences", label: "Preferences" },
   { key: "Sessions", label: "Sessions" },
-  // { key: "IgnoredUsers", label: "Ignored Users" },
   { key: "TransactionHistory", label: "Transaction History" },
 ] as const;
 
@@ -49,8 +48,6 @@ export default function SettingsPage() {
         return <PreferencesTab />;
       case "Sessions":
         return <SessionsTab />;
-      // case "IgnoredUsers":
-      // return <IgnoredUsersTab />;
       case "TransactionHistory":
         return <TransactionHistoryTab />;
       default:
@@ -64,8 +61,6 @@ export default function SettingsPage() {
         {/* Header + tabs */}
         <div className="mb-8 flex w-full min-w-0 flex-col items-start gap-4 ">
           <h1 className="text-3xl font-bold">Settings</h1>
-
-          {/* Tabs nav: becomes horizontal scroller on small screens */}
 
           {/* Tabs nav: auto-width pill with internal scrollbar */}
           <div className="scroll-tabs inline-block max-w-full rounded-full bg-[var(--button-background-primary-default)] overflow-x-auto overflow-y-hidden [-webkit-overflow-scrolling:touch] !pr-0">

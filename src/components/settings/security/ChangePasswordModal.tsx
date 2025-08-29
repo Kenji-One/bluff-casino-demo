@@ -1,3 +1,4 @@
+// ./src/components/settings/security/ChangePasswordModal.tsx
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -15,6 +16,17 @@ import InputField from "../../form/InputField";
 import Button from "../../form/Button";
 import userSettingsApi from "@/services/userSettings";
 import toast from "react-hot-toast";
+
+/* ── tiny helpers to avoid `any` in error handling ───────────────────────── */
+type FieldName = "currentPassword" | "newPassword" | "confirm";
+type ApiFieldError = { path: FieldName; message: string };
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+function isFieldName(v: unknown): v is FieldName {
+  return v === "currentPassword" || v === "newPassword" || v === "confirm";
+}
 
 /* ──────────────────────────────────────────────────────────────
    Password input with show / hide toggle + inline error support
@@ -108,13 +120,32 @@ export default function ChangePasswordModal({ open, onClose }: Props) {
       onClose();
       logout();
       router.refresh();
-    } catch (e: any) {
-      const apiErrors = e?.response?.data?.errors as
-        | { path: keyof typeof form; message: string }[]
-        | undefined;
+    } catch (e: unknown) {
+      // Safely extract backend errors without using `any`
+      let apiErrors: ApiFieldError[] | undefined;
+      if (isRecord(e)) {
+        const resp = e["response"];
+        if (isRecord(resp)) {
+          const data = resp["data"];
+          if (isRecord(data)) {
+            const errs = data["errors"];
+            if (Array.isArray(errs)) {
+              apiErrors = errs
+                .map((it): ApiFieldError | null => {
+                  const path = isRecord(it) ? it["path"] : undefined;
+                  const message = isRecord(it) ? it["message"] : undefined;
+                  if (isFieldName(path) && typeof message === "string") {
+                    return { path, message };
+                  }
+                  return null;
+                })
+                .filter(Boolean) as ApiFieldError[];
+            }
+          }
+        }
+      }
 
       if (apiErrors?.length) {
-        /* map backend errors → local state */
         const fieldErrs: Partial<Record<keyof typeof form, string>> = {};
         apiErrors.forEach(({ path, message }) => {
           fieldErrs[path] = message;
