@@ -69,18 +69,22 @@ export function ButtonSecondary({
 export function Toggle({
   checked,
   onChange,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onChange}
+      onClick={!disabled ? onChange : undefined}
+      disabled={disabled}
       aria-pressed={checked}
-      className={`w-10 h-6 rounded-full relative transition-colors cursor-pointer ${
-        checked ? "bg-[var(--color-brand)]" : "bg-[var(--tab-btn-bg)]"
-      }`}
+      aria-disabled={disabled}
+      className={`w-10 h-6 rounded-full relative transition-colors ${
+        disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+      } ${checked ? "bg-[var(--color-brand)]" : "bg-[var(--tab-btn-bg)]"}`}
     >
       <span
         className={`block w-4 h-4 rounded-full bg-white absolute top-0.5 translate-y-0.5 transition-transform ${

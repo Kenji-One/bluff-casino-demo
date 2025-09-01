@@ -1,6 +1,7 @@
 // src/components/settings/PreferencesTab.tsx
 "use client";
 
+import Link from "next/link";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -93,10 +94,11 @@ export default function PreferencesTab() {
     [isError, error]
   );
 
+  type PrefPatch = Parameters<typeof userSettingsApi.updatePreferences>[0];
+
   /* ---------- Update preferences (optimistic) ---------- */
   const { mutate, isPending: isSaving } = useMutation({
-    mutationFn: (patch: Partial<BackendPrefs>) =>
-      userSettingsApi.updatePreferences(patch),
+    mutationFn: (patch: PrefPatch) => userSettingsApi.updatePreferences(patch),
     onMutate: async (patch) => {
       await qc.cancelQueries({ queryKey: ["preferences"] });
       const prev = qc.getQueryData<BackendPrefs>(["preferences"]);
@@ -113,6 +115,7 @@ export default function PreferencesTab() {
   });
 
   /* ---------- Helpers ---------- */
+
   const toggle = (k: keyof BackendPrefs) => {
     if (!opts) return; // guard when data missing (e.g., logout)
     const next = !opts[k];
@@ -152,12 +155,12 @@ export default function PreferencesTab() {
             expired in the background, logging in again will restore access.
           </p>
           <div className="mt-4 flex gap-2">
-            <a
+            <Link
               href="/?auth=login"
               className="rounded-full px-4 py-2 bg-[var(--color-blue)] text-white text-sm hover:bg-[var(--color-blue)]/90"
             >
               Log in
-            </a>
+            </Link>
             <button
               type="button"
               onClick={() => refetch()}

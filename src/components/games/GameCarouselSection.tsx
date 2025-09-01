@@ -1,6 +1,7 @@
 // src/components/games/GameCarouselSection.tsx
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import CarouselCard from "./CarouselCard";
@@ -106,7 +107,7 @@ export default function GameCarouselSection({
         {/* right controls: View all + arrows */}
         <div className="hidden md:flex items-stretch gap-2">
           {viewAllHref && (
-            <a
+            <Link
               href={viewAllHref}
               className="group relative flex items-center rounded-full px-4 py-2 
              bg-[var(--sidenav-background)] text-sm font-semibold text-white 
@@ -117,7 +118,7 @@ export default function GameCarouselSection({
                 className="absolute inset-0 z-0 bg-[url('/images/view-all-bg.svg')] bg-cover bg-center 
                opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               />
-            </a>
+            </Link>
           )}
 
           <button

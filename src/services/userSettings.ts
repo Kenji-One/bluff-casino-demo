@@ -17,6 +17,18 @@ export interface PreferencesPayload {
   updatedAt: string;
 }
 
+type UpdatePreferencesPayload = Partial<
+  Pick<
+    PreferencesPayload,
+    | "flatView"
+    | "oddPreference"
+    | "privateMode"
+    | "emailMarketing"
+    | "streamerMode"
+    | "hideZeroBalances"
+  >
+>;
+
 /** Helper for responses that may be wrapped like `{ data: T }` */
 type MaybeWrapped<T> = T | { data: T };
 function unwrapData<T>(val: MaybeWrapped<T>): T {
@@ -43,14 +55,8 @@ const userSettingsApi = {
       "/user-settings/preferences"
     ),
 
-  updatePreferences: (prefs: {
-    flatView: boolean;
-    oddPreference: "Decimal" | "Fractional";
-    privateMode: boolean;
-    emailMarketing: boolean;
-    streamerMode: boolean;
-    hideZeroBalances: boolean;
-  }) => apiClient.put("/user-settings/preferences", prefs),
+  updatePreferences: (prefs: UpdatePreferencesPayload) =>
+    apiClient.put("/user-settings/preferences", prefs),
 
   resetPreferences: () => apiClient.post("/user-settings/preferences/reset"),
 
