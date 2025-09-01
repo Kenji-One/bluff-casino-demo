@@ -39,6 +39,16 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
+const asString = (v: unknown): string | undefined =>
+  typeof v === "string" ? v : undefined;
+
+const asUserId = (v: unknown): string | number | null | undefined =>
+  typeof v === "string" || typeof v === "number"
+    ? v
+    : v === null
+    ? null
+    : undefined;
+
 function readStoredUser(): User | null {
   try {
     const s =
@@ -60,21 +70,23 @@ type TwoFAError = Error & {
   twoFactorMethod?: string;
 };
 
+/** Ensure we always return a valid `User` (no nullable fields where `User` forbids them). */
 function normalizeUser(incoming: unknown, prev?: User | null): User {
   const src = isRecord(incoming) ? incoming : {};
 
-  const joinDate =
-    (src["joinDate"] as User["joinDate"] | undefined) ??
-    (src["joinedAt"] as unknown as User["joinDate"] | undefined) ??
-    (src["createdAt"] as unknown as User["joinDate"] | undefined) ??
-    (src["created_at"] as unknown as User["joinDate"] | undefined) ??
-    prev?.joinDate ??
-    null;
+  // joinDate must be a string (User["joinDate"] is string)
+  const joinDate: User["joinDate"] =
+    (typeof src["joinDate"] === "string" && (src["joinDate"] as string)) ||
+    (typeof src["joinedAt"] === "string" && (src["joinedAt"] as string)) ||
+    (typeof src["createdAt"] === "string" && (src["createdAt"] as string)) ||
+    (typeof src["created_at"] === "string" && (src["created_at"] as string)) ||
+    (prev?.joinDate ?? "");
 
-  const profilePicture =
-    "profilePicture" in src
-      ? (src["profilePicture"] as User["profilePicture"])
-      : prev?.profilePicture;
+  // profilePicture is optional string
+  const profilePicture: User["profilePicture"] =
+    (typeof src["profilePicture"] === "string"
+      ? (src["profilePicture"] as string)
+      : undefined) ?? prev?.profilePicture;
 
   const normalized: User = {
     ...(prev ?? ({} as User)),
@@ -154,10 +166,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const needs2FA =
         (isRecord(e) &&
-          typeof e["__twoFARequired"] === "boolean" &&
-          e["__twoFARequired"]) ||
-        Boolean(payload["requiresTwoFactor"]) ||
-        Boolean(payload["twoFactorRequired"]);
+          typeof (e as Record<string, unknown>)["__twoFARequired"] ===
+            "boolean" &&
+          Boolean((e as Record<string, unknown>)["__twoFARequired"])) ||
+        Boolean((payload as Record<string, unknown>)["requiresTwoFactor"]) ||
+        Boolean((payload as Record<string, unknown>)["twoFactorRequired"]);
 
       if (needs2FA) {
         const msg =
@@ -166,22 +179,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             payload["message"]) ||
           (e instanceof Error ? e.message : "2FA code required");
 
-        const special: TwoFAError = Object.assign(new Error(msg), {
-          __twoFARequired: true,
+        const special = Object.assign(new Error(msg), {
+          __twoFARequired: true as const,
           userId:
-            (isRecord(e) &&
-              (e["userId"] as string | number | null | undefined)) ??
-            (isRecord(payload)
-              ? (payload["userId"] as string | number | null | undefined)
-              : null) ??
+            (isRecord(e)
+              ? asUserId((e as Record<string, unknown>)["userId"])
+              : undefined) ??
+            (isRecord(payload) ? asUserId(payload["userId"]) : undefined) ??
             null,
           twoFactorMethod:
-            (isRecord(e) && (e["twoFactorMethod"] as string | undefined)) ??
+            (isRecord(e)
+              ? asString((e as Record<string, unknown>)["twoFactorMethod"])
+              : undefined) ??
             (isRecord(payload)
-              ? (payload["twoFactorMethod"] as string | undefined)
+              ? asString(payload["twoFactorMethod"])
               : undefined) ??
             "authenticator",
-        });
+        }) as TwoFAError;
+
         // don't set global error; let UI switch to 2FA
         throw special;
       }

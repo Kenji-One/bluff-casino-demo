@@ -11,7 +11,7 @@ import PrefRow from "./shared/PrefRow";
 import PrefRowSkeleton from "./shared/PrefRowSkeleton";
 import { CurrencyIcon } from "./shared";
 
-import userSettingsApi from "@/services/userSettings";
+import userSettingsApi, { PreferencesPayload } from "@/services/userSettings";
 import { useAuth } from "@/context/AuthContext";
 
 /* ─────────────────────────────────────────
@@ -31,11 +31,15 @@ const oddsOptions: SelectOption[] = [
 /* ─────────────────────────────────────────
    Types
    ───────────────────────────────────────── */
-type BackendPrefs = Awaited<
-  ReturnType<typeof userSettingsApi.getPreferences>
->["data"];
+type Prefs = PreferencesPayload;
+type OddPreference = Prefs["oddPreference"];
 
-type OddPreference = "Decimal" | "Fractional";
+type ToggleableKey =
+  | "flatView"
+  | "privateMode"
+  | "emailMarketing"
+  | "streamerMode"
+  | "hideZeroBalances";
 
 /* Narrow unknown to axios-like errors safely (no any) */
 const getHttpStatus = (err: unknown): number | undefined => {
@@ -77,12 +81,11 @@ export default function PreferencesTab() {
     refetch,
   } = useQuery({
     queryKey: ["preferences"],
-    // Only fetch when we have a user (prevents 401 spam and renders nicer UI)
     enabled: isAuthed,
-    queryFn: () => userSettingsApi.getPreferences().then((r) => r.data),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    // unwrap to the actual PreferencesPayload here:
+    queryFn: async () => (await userSettingsApi.getPreferences()).data as Prefs,
+    staleTime: 5 * 60 * 1000,
     retry: (failureCount, err) => {
-      // Avoid hammering if unauthorized
       const status = getHttpStatus(err);
       if (status === 401) return false;
       return failureCount < 2;
@@ -101,10 +104,9 @@ export default function PreferencesTab() {
     mutationFn: (patch: PrefPatch) => userSettingsApi.updatePreferences(patch),
     onMutate: async (patch) => {
       await qc.cancelQueries({ queryKey: ["preferences"] });
-      const prev = qc.getQueryData<BackendPrefs>(["preferences"]);
-      // merge optimistically if we have previous data
+      const prev = qc.getQueryData<Prefs>(["preferences"]);
       if (prev) {
-        qc.setQueryData<BackendPrefs>(["preferences"], { ...prev, ...patch });
+        qc.setQueryData<Prefs>(["preferences"], { ...prev, ...patch });
       }
       return { prev };
     },
@@ -115,16 +117,15 @@ export default function PreferencesTab() {
   });
 
   /* ---------- Helpers ---------- */
-
-  const toggle = (k: keyof BackendPrefs) => {
-    if (!opts) return; // guard when data missing (e.g., logout)
+  const toggle = (k: ToggleableKey) => {
+    if (!opts) return;
     const next = !opts[k];
-    mutate({ [k]: next } as Partial<BackendPrefs>);
+    mutate({ [k]: next } as PrefPatch);
   };
 
   const changeSelect = (v: OddPreference) => {
     if (!opts) return;
-    mutate({ oddPreference: v });
+    mutate({ oddPreference: v } as PrefPatch);
   };
 
   /* ---------- Loading UI ---------- */
@@ -219,7 +220,7 @@ export default function PreferencesTab() {
                 "Hide Zero Balances",
                 "Wallets with zero balance are hidden from view",
               ],
-            ] as const
+            ] as const satisfies ReadonlyArray<[ToggleableKey, string, string]>
           ).map(([k, label, sub]) => (
             <PrefRow key={k} label={label} sub={sub} layout="toggle">
               <Toggle checked={false} onChange={() => {}} />
@@ -231,6 +232,29 @@ export default function PreferencesTab() {
   }
 
   /* ---------- Normal UI (authorized, data present) ---------- */
+  const rows = [
+    [
+      "privateMode",
+      "Private Mode",
+      "Other users won't be able to view your wins, losses and wagered statistics",
+    ],
+    [
+      "emailMarketing",
+      "Email Marketing",
+      "Receive notifications for offers and promotions. Critical information regarding your account will always be sent",
+    ],
+    [
+      "streamerMode",
+      "Streamer Mode",
+      "Sensitive information will not be displayed",
+    ],
+    [
+      "hideZeroBalances",
+      "Hide Zero Balances",
+      "Wallets with zero balance are hidden from view",
+    ],
+  ] as const satisfies ReadonlyArray<[ToggleableKey, string, string]>;
+
   return (
     <section className="space-y-2">
       <Header title="Preferences" subtitle="Manage your account preferences" />
@@ -241,7 +265,7 @@ export default function PreferencesTab() {
         layout="toggle+select"
       >
         <Toggle
-          checked={Boolean(opts.flatView)}
+          checked={opts.flatView}
           onChange={() => toggle("flatView")}
           disabled={isSaving}
         />
@@ -257,43 +281,19 @@ export default function PreferencesTab() {
         sub="Odds will be displayed in this format"
       >
         <CustomSelect
-          value={opts.oddPreference as OddPreference}
+          value={opts.oddPreference}
           onChange={(v) => {
-            // Fixes "any": narrow at runtime before calling
             if (isOddValue(v)) changeSelect(v);
           }}
           options={oddsOptions}
         />
       </PrefRow>
 
-      {(
-        [
-          [
-            "privateMode",
-            "Private Mode",
-            "Other users won't be able to view your wins, losses and wagered statistics",
-          ],
-          [
-            "emailMarketing",
-            "Email Marketing",
-            "Receive notifications for offers and promotions. Critical information regarding your account will always be sent",
-          ],
-          [
-            "streamerMode",
-            "Streamer Mode",
-            "Sensitive information will not be displayed",
-          ],
-          [
-            "hideZeroBalances",
-            "Hide Zero Balances",
-            "Wallets with zero balance are hidden from view",
-          ],
-        ] as const
-      ).map(([k, label, sub]) => (
+      {rows.map(([k, label, sub]) => (
         <PrefRow key={k} label={label} sub={sub} layout="toggle">
           <Toggle
-            checked={Boolean(opts[k as keyof BackendPrefs])}
-            onChange={() => toggle(k as keyof BackendPrefs)}
+            checked={opts[k]}
+            onChange={() => toggle(k)}
             disabled={isSaving}
           />
         </PrefRow>
