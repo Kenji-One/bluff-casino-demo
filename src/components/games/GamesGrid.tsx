@@ -1,19 +1,34 @@
+// src/components/games/GamesGrid.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import {
-  apiClient,
-  Game,
-  ProductsResponse,
-  RawGamesResponse,
-} from "@/services/api";
+import { apiClient, Game } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import GameCard from "./GameCard";
 import GameFilters from "./GameFilters";
 
 const GAMES_PER_PAGE = 50;
+
+/* ─────────────────────────────────────────
+   Local response types (keep in sync with backend)
+   ───────────────────────────────────────── */
+type ProductsResponse = {
+  success: boolean;
+  message?: string;
+  data: { products: string[] };
+};
+
+type RawGame = Partial<Game> & {
+  img?: string; // some providers use `img`
+  imageUrl?: string;
+};
+
+type RawGamesResponse = {
+  data?: { games?: RawGame[] };
+  games?: RawGame[];
+};
 
 export default function GameGrid() {
   const router = useRouter();
@@ -33,6 +48,7 @@ export default function GameGrid() {
     provider: "",
   });
 
+  /* ---------- load providers (products) ---------- */
   useEffect(() => {
     (async () => {
       try {
@@ -46,12 +62,15 @@ export default function GameGrid() {
         } else {
           setError(res.message || "Failed to load providers");
         }
-      } catch (e: unknown) {
+      } catch (e) {
         const err = e as Error;
         setError(err.message || "Failed to load providers");
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* ---------- fetch games when provider changes ---------- */
   useEffect(() => {
     if (!filters.provider) return;
     fetchGames(1, true);
@@ -67,21 +86,22 @@ export default function GameGrid() {
         `/seamless/games?productId=${filters.provider}&page=${p}&size=${GAMES_PER_PAGE}`
       );
 
-      const list = Array.isArray(res?.data?.games)
-        ? res.data.games
+      const list: RawGame[] = Array.isArray(res?.data?.games)
+        ? res.data!.games!
         : Array.isArray(res?.games)
-        ? res.games
+        ? res.games!
         : [];
 
-      const normalized: Game[] = list.map((g: Game) => ({
-        ...g,
-        imageUrl: g.imageUrl ?? g.img ?? "",
-      }));
+      const normalized: Game[] = list.map((g) => {
+        // prefer imageUrl, fallback to img, else empty
+        const imageUrl = g.imageUrl ?? g.img ?? "";
+        return { ...(g as Game), imageUrl };
+      });
 
       setGames((prev) => (replace ? normalized : [...prev, ...normalized]));
       setHasMore(normalized.length === GAMES_PER_PAGE);
       setPage(p);
-    } catch (e: unknown) {
+    } catch (e) {
       const err = e as Error;
       setError(err.message || "Failed to load games");
     } finally {
@@ -102,23 +122,6 @@ export default function GameGrid() {
     }
     try {
       setLoading(true);
-      // const res = await apiClient.post(`/games/${filters.provider}/launch`, {
-      //   gameCode: g.code,
-      //   currency: "THB",
-      //   language: "en",
-      //   isMobileLogin: /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent),
-      // });
-
-      // const gameUrl = res?.data?.gameUrl || res?.data?.url;
-      // if (res.success && gameUrl) {
-      //   router.push(
-      //     `/play/${filters.provider}/${g.code}?url=${encodeURIComponent(
-      //       gameUrl
-      //     )}&name=${encodeURIComponent(g.name)}`
-      //   );
-      // } else {
-      //   alert(res.message || "Failed to launch game");
-      // }
       const gameUrl = await apiClient.launchGame(g.code, filters.provider);
       router.push(
         `/play/${filters.provider}/${g.code}` +
@@ -126,7 +129,7 @@ export default function GameGrid() {
             g.name
           )}`
       );
-    } catch (e: unknown) {
+    } catch (e) {
       const err = e as Error;
       alert(err.message || "Failed to launch game");
     } finally {
